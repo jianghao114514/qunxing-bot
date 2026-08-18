@@ -71,4 +71,8 @@ Python · Flask · Flask-SocketIO · Vue 2 · Chart.js · pywebview · websocket
 
 [GPLv3](LICENSE) © 群星聚合作者
 
+## 联系与反馈
+
+- 邮箱：[jiangbo129@163.com](mailto:jiangbo129@163.com)（问题反馈、功能建议）
+
 本项目仅供学习研究使用，请遵守 [QQ 软件许可及服务协议](https://rule.tencent.com/rule/preview/46a0f24e-62c1-47e4-a8e3-8e3e9e8e8e8e) 与当地法律法规，勿用于违规用途。

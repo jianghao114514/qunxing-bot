@@ -26,6 +26,7 @@ from core.ai import call_ai_with_fallback
 from core.utils import send_email
 from core.ws_client import main_ws, ai_health_state   # 关键导入
 from core.napcat_finder import find_exe, scan_napcat_exe
+from core.version import app_version
 
 # 屏蔽 werkzeug 的每次请求访问日志（GET /api/status 之类）
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
@@ -160,6 +161,7 @@ def api_status():
         'bot_qq': CONFIG['bot_qq'],
         'master_qq': CONFIG['master_qq'],
         'system_name': CONFIG.get('system_name', '群星聚合'),
+        'version': app_version(),
         'ui_quality': CONFIG.get('web_ui_quality', 'high'),
         'theme': CONFIG.get('web_theme', 'light'),
         'guide_auto': CONFIG.get('web_guide_auto', True),

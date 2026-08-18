@@ -621,6 +621,7 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
                 <div class="foot-status">
                     <span class="dot" :class="status.ai_health ? 'ok' : 'bad'"></span><span>星核{{ status.ai_health ? '稳定运转' : '状态异常' }}</span>
                 </div>
+                <div class="foot-status" style="justify-content:center;margin-top:6px"><span style="font-size:11.5px;opacity:.75">v{{ status.version || 'dev' }} · AI 全流程开发</span></div>
                 <button class="btn btn-sm btn-primary w-100" @click="toggleQuality">{{ status.ui_quality === 'fast' ? '高性能模式' : (status.ui_quality === 'balanced' ? '均衡模式' : '高质量模式') }} · 点击切换</button>
                 <button class="btn btn-sm btn-secondary w-100" @click="toggleTheme($event)">{{ status.theme === 'dark' ? '深色模式' : '浅色模式' }} · 点击切换</button>
                 <button class="btn btn-sm btn-secondary w-100" @click="startGuide">配置引导</button>

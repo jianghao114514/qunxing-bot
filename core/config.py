@@ -52,7 +52,7 @@ DEFAULT_CONFIG = {
     "napcat_watchdog_enabled": True,
     "napcat_exe": "",
     "napcat_qq": "",
-    "system_name": "群星聚合",
+    "system_name": "群星",
     "data_dir": str(DATA_DIR),
     "users_dir": str(USERS_DIR),
     "config_file": str(CONFIG_FILE)
@@ -177,7 +177,7 @@ def load_config():
     CUSTOM_MENU_TEXTS.clear()
     CUSTOM_MENU_TEXTS.update(data.get("custom_menu_texts", {}))
     CONFIG["web_password"] = data.get("web_password", "")
-    CONFIG["system_name"] = data.get("system_name", "群星聚合")
+    CONFIG["system_name"] = data.get("system_name", "群星")
     # ===== 连接与密钥统一从 config.json 读取（缺失则用代码内默认值并回写，便于查看） =====
     conn_keys = ["ws_url", "api_key", "base_url", "model_name", "welcome_bonus",
                  "welcome_message", "timeout", "reconnect_delay", "max_history", "reminder_days",
@@ -237,7 +237,7 @@ def load_config():
 def save_config():
     data = {
         "web_password": CONFIG.get("web_password", ""),
-        "system_name": CONFIG.get("system_name", "群星聚合"),
+        "system_name": CONFIG.get("system_name", "群星"),
         "ws_url": CONFIG.get("ws_url", ""),
         "api_key": CONFIG.get("api_key", ""),
         "base_url": CONFIG.get("base_url", ""),

@@ -1,10 +1,14 @@
-# 群星聚合
+# 群星
 
 > **版本 v26.8.19**（版本号以年月日命名）· [更新日志](CHANGELOG.md) · GPLv3
 
 一个自部署的 QQ 机器人框架：AI 对话、签到、抽卡、塔罗、星球养成等娱乐功能，带星空主题 Web 管理面板，支持 NapCat 协议端一键对接与掉线自动守护。
 
 > 🤖 **本项目由 AI 全流程开发**：需求分析、代码实现、UI 设计、测试验证、文档编写均由 AI 完成。
+
+## 下载
+
+前往 [Releases 页面](https://github.com/jianghao114514/qunxing-bot/releases) 下载最新版 `QunXingLauncher-*.exe`（单文件启动器，双击即用）。
 
 ## 功能
 
@@ -73,7 +77,7 @@ Python · Flask · Flask-SocketIO · Vue 2 · Chart.js · pywebview · websocket
 
 ## 开源许可
 
-[GPLv3](LICENSE) © 群星聚合作者
+[GPLv3](LICENSE) © 群星作者
 
 ## 联系与反馈
 

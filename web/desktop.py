@@ -54,7 +54,7 @@ def run_desktop():
     """打开桌面管理面板（阻塞直到窗口关闭）。返回 True 表示正常显示过窗口。"""
     from core.config import CONFIG
 
-    system_name = CONFIG.get("system_name", "群星聚合")
+    system_name = CONFIG.get("system_name", "群星")
     port = int(CONFIG.get("web_port", 5000))
 
     if not _wait_server_ready(port):

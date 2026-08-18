@@ -160,7 +160,7 @@ def api_status():
         'ai_health': ai_health_state,
         'bot_qq': CONFIG['bot_qq'],
         'master_qq': CONFIG['master_qq'],
-        'system_name': CONFIG.get('system_name', '群星聚合'),
+        'system_name': CONFIG.get('system_name', '群星'),
         'version': app_version(),
         'ui_quality': CONFIG.get('web_ui_quality', 'high'),
         'theme': CONFIG.get('web_theme', 'light'),

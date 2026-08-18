@@ -202,7 +202,7 @@ class Bot:
         connected_successfully = True
         main_ws = ws
         self.ws = ws
-        print(f"连接成功！{CONFIG.get('system_name', '群星聚合')}系统已就绪。")
+        print(f"连接成功！{CONFIG.get('system_name', '群星')}系统已就绪。")
         print(f"群主 QQ: {CONFIG['master_qq']}")
         print(f"机器人 QQ: {CONFIG['bot_qq']}")
         print(f"Web UI: http://127.0.0.1:{CONFIG['web_port']}")

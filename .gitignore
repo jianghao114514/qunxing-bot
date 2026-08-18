@@ -1,0 +1,34 @@
+# ===== 运行时数据（绝不提交，含密钥/用户数据） =====
+bot_data/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+python_runtime/
+.pytest_cache/
+
+# ===== 打包产物 =====
+dist/
+build/
+*.exe
+*.spec
+
+# ===== 启动器标记 =====
+.qunxing_version
+
+# ===== 日志 =====
+*.log
+logs/
+
+# ===== 系统/编辑器 =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ===== 本地临时文件 =====
+_t.py

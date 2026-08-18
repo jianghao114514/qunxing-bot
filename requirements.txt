@@ -1,0 +1,8 @@
+websocket-client
+openai
+requests
+flask
+flask-socketio
+psutil
+Pillow
+pywebview

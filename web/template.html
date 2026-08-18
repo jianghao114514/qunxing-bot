@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>群星聚合 · 星空控制台</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.5.4/dist/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<style>
+:root {
+    --glass-bg: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.12);
+    --accent-1: #8b7bff;
+    --accent-2: #4fc3f7;
+    --text: #e8ecff;
+    --text-dim: #9aa4c7;
+    --danger: #ff6b8a;
+    --ok: #4ade80;
+}
+* { scrollbar-width: thin; scrollbar-color: rgba(139,123,255,.5) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--accent-1), var(--accent-2)); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+body {
+    margin: 0; color: var(--text); overflow-x: hidden;
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background:
+        radial-gradient(1200px 800px at 80% -10%, rgba(139,123,255,.16), transparent 60%),
+        radial-gradient(1000px 700px at 10% 110%, rgba(79,195,247,.12), transparent 60%),
+        #04060f;
+}
+#starfield { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.45);
+}
+.grad-text { background: linear-gradient(120deg, var(--accent-1), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sidebar { position: fixed; top: 16px; bottom: 16px; left: 16px; width: 212px; z-index: 10; padding: 18px 12px; display: flex; flex-direction: column; }
+.main { margin-left: 244px; padding: 16px 16px 16px 4px; position: relative; z-index: 5; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 16px; font-size: 18px; font-weight: 700; }
+.nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px;
+    color: var(--text-dim); cursor: pointer; text-decoration: none; margin-bottom: 4px;
+    border-left: 3px solid transparent; transition: all .25s ease;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,.06); transform: translateX(3px); }
+.nav-item.active {
+    color: #fff; background: linear-gradient(90deg, rgba(139,123,255,.25), rgba(79,195,247,.12));
+    border-left-color: var(--accent-1); box-shadow: 0 0 18px rgba(139,123,255,.25);
+}
+.spin-star { display: inline-block; color: var(--accent-2); text-shadow: 0 0 12px var(--accent-2); animation: starPulse 3s ease-in-out infinite; }
+@keyframes starPulse { 0%,100% { transform: scale(1) rotate(0deg); opacity: 1; } 50% { transform: scale(1.25) rotate(180deg); opacity: .7; } }
+.card { border: none; }
+.card-header { background: rgba(0,0,0,.25); border-bottom: 1px solid rgba(255,255,255,.1); color: var(--text); }
+.card-body { color: var(--text); }
+.stat-card { transition: all .3s ease; }
+.stat-card:hover { transform: translateY(-4px); border-color: rgba(139,123,255,.5); box-shadow: 0 12px 40px rgba(139,123,255,.25); }
+.stat-value { font-size: 28px; font-weight: 700; }
+.dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.dot.ok { background: var(--ok); box-shadow: 0 0 10px var(--ok); animation: pulse 1.6s ease-in-out infinite; }
+.dot.bad { background: var(--danger); box-shadow: 0 0 10px var(--danger); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+.table { --bs-table-bg: transparent; color: var(--text); }
+.table thead th { color: var(--text-dim); border-color: rgba(255,255,255,.1); font-weight: 600; }
+.table td { border-color: rgba(255,255,255,.07); vertical-align: middle; }
+.list-group-item { background: transparent; color: var(--text); border-color: rgba(255,255,255,.08); }
+.log-container {
+    background: rgba(0,0,0,.55); border: 1px solid rgba(79,195,247,.2);
+    box-shadow: inset 0 0 30px rgba(79,195,247,.05);
+    height: 420px; overflow-y: auto; font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px; padding: 12px; border-radius: 14px;
+}
+.log-entry { border-bottom: 1px solid rgba(255,255,255,.05); padding: 4px 0; color: #b9e6ff; }
+.log-entry::before { content: '▸ '; color: var(--accent-2); }
+.accordion-item { background: rgba(255,255,255,.03); border: 1px solid var(--glass-border); border-radius: 12px !important; margin-bottom: 10px; overflow: hidden; }
+.accordion-button { background: rgba(0,0,0,.25); color: var(--text); }
+.accordion-button:not(.collapsed) { background: rgba(139,123,255,.18); color: #fff; box-shadow: none; }
+.accordion-button::after { filter: invert(1) hue-rotate(200deg); }
+.accordion-body { color: var(--text); }
+.btn-primary { background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); border: none; }
+.btn-primary:hover { filter: brightness(1.15); }
+.btn-close { filter: invert(1); }
+.form-control, .form-select { background: rgba(0,0,0,.3); border: 1px solid var(--glass-border); color: var(--text); }
+.form-control:focus, .form-select:focus { background: rgba(0,0,0,.45); color: #fff; border-color: var(--accent-1); box-shadow: 0 0 0 .2rem rgba(139,123,255,.15); }
+.form-control::placeholder { color: rgba(255,255,255,.3); }
+.text-muted { color: var(--text-dim) !important; }
+.switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; inset: 0; background: rgba(255,255,255,.15); border-radius: 24px; transition: .3s; }
+.slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .3s; box-shadow: 0 0 8px rgba(255,255,255,.6); }
+input:checked + .slider { background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); }
+input:checked + .slider:before { transform: translateX(26px); }
+.fadeSlide-enter-active, .fadeSlide-leave-active { transition: all .3s ease; }
+.fadeSlide-enter { opacity: 0; transform: translateY(14px); }
+.fadeSlide-leave-to { opacity: 0; transform: translateY(-8px); }
+.fade-enter-active, .fade-leave-active { transition: opacity .25s ease; }
+.fade-enter, .fade-leave-to { opacity: 0; }
+.modal-content { background: rgba(15,17,38,.92); border: 1px solid var(--glass-border); backdrop-filter: blur(20px); color: var(--text); }
+.modal.show { display: block; background: rgba(4,6,15,.5); backdrop-filter: blur(4px); }
+.form-control:read-only { background: rgba(255,255,255,.06); color: var(--text); border-color: rgba(255,255,255,.15); }
+.modal .form-control:read-only:focus { background: rgba(255,255,255,.06); color: var(--text); box-shadow: none; }
+.modal .form-control-plaintext { color: var(--text); background: rgba(0,0,0,.3); border: 1px solid var(--glass-border); border-radius: .375rem; padding: .375rem .75rem; }
+.login-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(4,6,15,.6); backdrop-filter: blur(6px); }
+.login-card { width: 360px; padding: 36px 30px; text-align: center; animation: floatIn .5s ease; }
+@keyframes floatIn { from { opacity: 0; transform: translateY(20px) scale(.96); } to { opacity: 1; transform: none; } }
+.chart-wrap { position: relative; height: 260px; }
+.pagination .page-link { background: rgba(0,0,0,.3); border-color: var(--glass-border); color: var(--text); }
+.pagination .page-item.active .page-link { background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); border-color: transparent; }
+.badge.bg-info { background: linear-gradient(135deg, var(--accent-2), var(--accent-1)) !important; }
+
+/* ============ 星群聚合 · 设计升级层 v2 ============ */
+/* 星云光斑 + 极光背景 */
+.nebula {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+        radial-gradient(900px 620px at 82% 6%, rgba(139,123,255,.20), transparent 62%),
+        radial-gradient(760px 560px at 8% 92%, rgba(79,195,247,.14), transparent 62%),
+        radial-gradient(520px 420px at 46% 42%, rgba(190,120,255,.07), transparent 65%);
+}
+.nebula.n2 {
+    background:
+        radial-gradient(420px 300px at 72% 78%, rgba(64,224,208,.06), transparent 60%),
+        radial-gradient(300px 240px at 24% 18%, rgba(255,120,180,.05), transparent 60%);
+    animation: nebDrift 26s ease-in-out infinite alternate;
+}
+@keyframes nebDrift {
+    from { transform: translate3d(0,0,0) scale(1); }
+    to   { transform: translate3d(2.5%,-1.5%,0) scale(1.06); }
+}
+.aurora {
+    position: fixed; left: -18%; right: -18%; top: -26%; height: 52%; z-index: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 18%, rgba(139,123,255,.10) 34%, rgba(79,195,247,.09) 52%, transparent 70%);
+    filter: blur(46px); animation: auroraShift 17s ease-in-out infinite alternate;
+}
+@keyframes auroraShift {
+    from { transform: translateX(-4%) rotate(-2deg); opacity: .75; }
+    to   { transform: translateX(4%) rotate(2deg); opacity: 1; }
+}
+/* ===== 渲染质量档：perf-fast(高性能) / perf-bal(均衡) / 默认(高质量) ===== */
+/* 高性能：关闭全部特效 */
+body.perf-fast .aurora,
+body.perf-fast .nebula {
+    animation: none !important;
+    filter: none !important;
+}
+body.perf-fast .glass {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+body.perf-fast .orbit-ring,
+body.perf-fast .spin-star,
+body.perf-fast .dot,
+body.perf-bal .orbit-ring,
+body.perf-bal .spin-star {
+    animation: none !important;
+}
+/* 均衡：静态极光（降模糊）、无玻璃模糊、无旋转动画，仅保留缓慢呼吸灯 */
+body.perf-bal .aurora {
+    animation: none !important;
+    filter: blur(24px);
+}
+body.perf-bal .nebula {
+    animation: none !important;
+}
+body.perf-bal .glass {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+body.perf-bal .dot {
+    animation: pulse 3s ease-in-out infinite;
+}
+/* ===== 配置引导 ===== */
+.guide-overlay {
+    position: fixed; inset: 0; z-index: 2000;
+    background: radial-gradient(900px 600px at 50% 40%, rgba(139,123,255,.10), transparent 65%), rgba(4,6,15,.78);
+    display: flex; align-items: center; justify-content: center;
+    animation: guideFade .35s ease;
+}
+.guide-card {
+    width: 660px; max-width: 92vw; max-height: 92vh;
+    display: flex; flex-direction: column;
+    border-radius: 28px; padding: 30px 42px 26px;
+    position: relative; overflow: hidden;
+    background: linear-gradient(165deg, rgba(28,22,64,.96), rgba(9,11,28,.96));
+    border: 1px solid rgba(139,123,255,.4);
+    box-shadow: 0 28px 90px rgba(0,0,0,.65), 0 0 70px rgba(139,123,255,.14);
+    animation: guideUp .5s cubic-bezier(.2,.9,.3,1.15);
+}
+.guide-card::before {
+    content: ""; position: absolute; top: -80px; left: -80px; right: -80px; height: 160px;
+    background: linear-gradient(90deg, transparent, rgba(139,123,255,.18), transparent);
+    transform: rotate(-6deg); pointer-events: none;
+}
+.guide-orb {
+    position: absolute; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, rgba(139,123,255,.28), transparent 70%);
+    animation: guideTwinkle 3.4s ease-in-out infinite;
+}
+.guide-progress { height: 4px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+.guide-progress-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); box-shadow: 0 0 12px rgba(139,123,255,.8); transition: width .45s cubic-bezier(.2,.9,.3,1); }
+.guide-top { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 6px; font-size: 13px; color: var(--text-dim); }
+.guide-brand { letter-spacing: 1px; color: var(--text); font-weight: 600; }
+.guide-stepno { font-variant-numeric: tabular-nums; }
+.guide-body { text-align: center; padding: 18px 8px 10px; flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+.guide-icon {
+    width: 74px; height: 74px; border-radius: 50%; margin-bottom: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; font-weight: 800; color: #fff;
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+    box-shadow: 0 0 34px rgba(139,123,255,.55), inset 0 2px 6px rgba(255,255,255,.35);
+    animation: guidePulse 3s ease-in-out infinite;
+}
+.guide-title {
+    font-size: 24px; font-weight: 800; letter-spacing: 1px; margin-bottom: 14px;
+    background: linear-gradient(120deg, #fff, #c8bfff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.guide-state { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 20px; margin-left: 10px; vertical-align: 4px; letter-spacing: 0; -webkit-text-fill-color: currentColor; }
+.guide-state.ok { background: rgba(74,222,128,.14); color: var(--ok); border: 1px solid rgba(74,222,128,.45); }
+.guide-state.no { background: rgba(255,107,138,.12); color: var(--danger); border: 1px solid rgba(255,107,138,.45); }
+.guide-desc { text-align: left; max-width: 470px; margin: 0 auto; }
+.guide-desc p { color: #c6cdf0; font-size: 14.5px; line-height: 1.85; margin: 0 0 9px; }
+.guide-desc p b { color: var(--accent-2); font-weight: 600; }
+.guide-links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+.guide-link {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 10px; font-size: 13px;
+    background: rgba(139,123,255,.14); border: 1px solid rgba(139,123,255,.42); color: #b9aaff; text-decoration: none; transition: all .2s ease;
+}
+.guide-link:hover { background: rgba(139,123,255,.3); color: #fff; transform: translateY(-1px); }
+.guide-cur {
+    margin: 14px auto 0; max-width: 470px; font-size: 12.5px; padding: 8px 14px; border-radius: 10px;
+    background: rgba(255,255,255,.05); border: 1px dashed rgba(139,123,255,.35); color: var(--text-dim); word-break: break-all; line-height: 1.7;
+}
+.guide-cur b { color: var(--accent-2); font-weight: 600; }
+.guide-form { text-align: left; max-width: 470px; margin: 16px auto 0; width: 100%; }
+.guide-form label { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; letter-spacing: .5px; }
+.guide-form .form-control { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); color: var(--text); font-size: 13.5px; border-radius: 10px; padding: 8px 12px; }
+.guide-form .form-control:focus { border-color: var(--accent-1); box-shadow: 0 0 0 3px rgba(139,123,255,.2); background: rgba(255,255,255,.08); }
+.guide-form-row { display: flex; gap: 12px; }
+.guide-form-row > div { flex: 1; }
+.guide-form .btn { margin-top: 14px; }
+.guide-save-msg { font-size: 13px; margin-left: 12px; }
+.guide-save-msg.ok { color: var(--ok); }
+.guide-save-msg.no { color: var(--danger); }
+.guide-dots { display: flex; justify-content: center; gap: 8px; margin: 18px 0 16px; }
+.guide-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.16); transition: all .3s ease; }
+.guide-dot.active { background: var(--accent-1); box-shadow: 0 0 12px var(--accent-1); transform: scale(1.35); }
+.guide-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.guide-left, .guide-right { display: flex; gap: 8px; }
+.guide-skip { opacity: .75; }
+.guide-next { min-width: 120px; font-weight: 600; }
+.guide-glow { box-shadow: 0 0 0 1.5px rgba(139,123,255,.65), 0 0 26px rgba(139,123,255,.4) !important; transform: translateX(3px); }
+@keyframes guideFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes guideUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes guidePulse { 0%,100% { opacity: .8; } 50% { opacity: 1; } }
+@keyframes guideTwinkle { 0%,100% { opacity: .3; } 50% { opacity: .95; } }
+.guide-step-enter-active { transition: opacity .3s ease; }
+.guide-step-leave-active { transition: opacity .18s ease; }
+.guide-step-enter-from { opacity: 0; }
+.guide-step-leave-to { opacity: 0; }
+body.perf-fast .guide-card, body.perf-fast .guide-icon, body.perf-fast .guide-orb { animation: none !important; }
+/* 必填标记 / 表单分隔线 */
+.guide-req { color: var(--danger); font-weight: 600; margin-left: 4px; font-size: 11px; }
+.guide-form-divider {
+    display: flex; align-items: center; gap: 10px; margin: 18px 0 2px; font-size: 12px; color: var(--text-dim);
+}
+.guide-form-divider::before, .guide-form-divider::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,.1); }
+::selection { background: rgba(139,123,255,.45); color: #fff; }
+:focus-visible { outline: 2px solid rgba(139,123,255,.6); outline-offset: 2px; }
+
+/* 玻璃卡片 v2：渐变描边 + 顶部高光 */
+.glass {
+    position: relative;
+    background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.02) 46%);
+    backdrop-filter: blur(20px) saturate(1.25);
+    -webkit-backdrop-filter: blur(20px) saturate(1.25);
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 60px rgba(139,123,255,.04);
+}
+.glass::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    padding: 1px; opacity: .55;
+    background: linear-gradient(135deg, rgba(139,123,255,.55), transparent 30%, transparent 70%, rgba(79,195,247,.45));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.card-header {
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+    border-bottom: 1px solid rgba(255,255,255,.1);
+    letter-spacing: .5px;
+}
+.card-header::before {
+    content: "✦"; margin-right: 8px; color: var(--accent-2);
+    text-shadow: 0 0 10px var(--accent-2); font-size: 14px;
+}
+
+/* 统计卡数字发光 */
+.stat-card { border-radius: 20px; }
+.stat-value { font-size: 30px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 0 24px rgba(139,123,255,.35); }
+.stat-card:hover { border-color: rgba(139,123,255,.55); box-shadow: 0 16px 48px rgba(139,123,255,.3), inset 0 1px 0 rgba(255,255,255,.18); }
+
+/* 侧边栏 v2 */
+.sidebar {
+    position: fixed;
+    background: linear-gradient(185deg, rgba(24,20,58,.72), rgba(8,10,26,.72));
+    border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 14px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.1);
+    border-radius: 22px; width: 224px;
+}
+.brand { font-size: 19px; letter-spacing: 2px; }
+.brand .spin-star { font-size: 24px; }
+.nav-item { border-radius: 14px; padding: 11px 16px; font-size: 14.5px; position: relative; overflow: hidden; }
+.nav-item::after {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--accent-1), var(--accent-2)); opacity: 0; transition: opacity .25s;
+}
+.nav-item:hover { background: rgba(139,123,255,.1); transform: translateX(4px); box-shadow: 0 4px 18px rgba(139,123,255,.18); }
+.nav-item.active {
+    background: linear-gradient(90deg, rgba(139,123,255,.3), rgba(79,195,247,.14));
+    box-shadow: 0 6px 24px rgba(139,123,255,.35), inset 0 1px 0 rgba(255,255,255,.12);
+    font-weight: 600;
+}
+.nav-item.active::after { opacity: 1; }
+.sidebar-foot {
+    margin-top: auto; padding: 12px 14px 4px; font-size: 12px; color: var(--text-dim);
+    border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 8px;
+}
+.sidebar-foot .foot-status { display: flex; align-items: center; gap: 8px; }
+.sidebar-foot .dot { width: 8px; height: 8px; }
+
+/* 登录卡片 v2 */
+.login-overlay { background: radial-gradient(900px 600px at 50% 42%, rgba(139,123,255,.14), transparent 65%), rgba(4,6,15,.62); }
+.login-card {
+    width: 380px; padding: 44px 36px; border-radius: 26px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 90px rgba(139,123,255,.22);
+}
+.orbit-ring {
+    width: 86px; height: 86px; margin: 0 auto 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    border: 1px dashed rgba(139,123,255,.5);
+    animation: orbitSpin 14s linear infinite;
+    box-shadow: 0 0 30px rgba(139,123,255,.25), inset 0 0 24px rgba(79,195,247,.15);
+}
+.orbit-ring .spin-star { font-size: 40px; animation: starPulse 3s ease-in-out infinite; }
+@keyframes orbitSpin { to { transform: rotate(360deg); } }
+
+/* 按钮 v2 */
+.btn { border-radius: 12px; letter-spacing: .5px; transition: all .25s ease; }
+.btn-primary {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+    border: none; box-shadow: 0 4px 18px rgba(139,123,255,.4);
+}
+.btn-primary:hover { filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 8px 26px rgba(139,123,255,.55); }
+.btn-secondary { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: var(--text); }
+.btn-secondary:hover { background: rgba(255,255,255,.14); color: #fff; }
+.btn-danger { background: linear-gradient(135deg, #ff6b8a, #e0455f); border: none; box-shadow: 0 4px 18px rgba(255,107,138,.35); }
+.btn-info, .btn-warning { color: #fff; }
+
+/* 表格 v2 */
+.table thead th { text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
+.table tbody tr { transition: background .2s; }
+.table tbody tr:hover { background: rgba(139,123,255,.07); }
+.pagination .page-item.active .page-link { box-shadow: 0 4px 16px rgba(139,123,255,.4); }
+
+/* 图表容器 */
+.chart-wrap { background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: 12px; height: 280px; overflow: hidden; }
+
+/* 弹窗 v2 */
+.modal-content { background: linear-gradient(170deg, rgba(28,24,64,.96), rgba(10,12,28,.96)); border-radius: 22px; box-shadow: 0 30px 90px rgba(0,0,0,.7), 0 0 70px rgba(139,123,255,.2); }
+.modal-header { border-bottom: 1px solid rgba(255,255,255,.1); }
+.modal-footer { border-top: 1px solid rgba(255,255,255,.1); }
+.modal.show .modal-dialog { animation: modalIn .3s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes modalIn { from { opacity: 0; transform: translateY(26px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* 手风琴 v2 */
+.accordion-button { letter-spacing: .5px; font-weight: 600; }
+.accordion-item { box-shadow: 0 4px 20px rgba(0,0,0,.25); }
+.accordion-button:not(.collapsed) { background: linear-gradient(90deg, rgba(139,123,255,.22), rgba(79,195,247,.1)); }
+
+/* 开关 v2 */
+.slider { box-shadow: inset 0 2px 6px rgba(0,0,0,.4); }
+input:checked + .slider { box-shadow: 0 0 16px rgba(139,123,255,.5); }
+
+/* tab 切换动画：进场正常流，离场元素绝对定位叠在上方，避免布局下沉跳动 */
+.tabfade-enter-active, .tabfade-leave-active { transition: opacity .18s ease, transform .22s ease; }
+.tabfade-enter { opacity: 0; transform: translateY(14px) scale(.995); }
+.tabfade-leave-to { opacity: 0; transform: translateY(-8px); }
+.tabfade-leave-active { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
+
+/* ============ 主题切换动画（View Transition 圆形扩散 / 无 API 时 CSS 过渡兜底） ============ */
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) { animation: theme-vt-in .5s ease; }
+@keyframes theme-vt-in {
+    from { clip-path: circle(0% at var(--vt-x, 50%) var(--vt-y, 50%)); }
+    to { clip-path: circle(150% at var(--vt-x, 50%) var(--vt-y, 50%)); }
+}
+body.theme-anim, body.theme-anim * {
+    transition: background-color .45s ease, border-color .45s ease, color .45s ease !important;
+}
+
+/* 轻提示 Toast */
+.toast-box { position: fixed; top: 18px; right: 18px; z-index: 2000; cursor: pointer; }
+.toast-inner {
+    background: linear-gradient(135deg, rgba(139,123,255,.92), rgba(79,195,247,.92));
+    color: #fff; font-size: 13px; padding: 10px 18px; border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.35); max-width: 340px;
+}
+body.theme-light .toast-inner { background: linear-gradient(135deg, #5d6cff, #38a1e8); }
+
+/* 滚动条与杂项 */
+::-webkit-scrollbar { width: 7px; }
+.form-control, .form-select { border-radius: 12px; transition: all .2s; }
+.form-control:focus, .form-select:focus { box-shadow: 0 0 0 3px rgba(139,123,255,.18), 0 0 18px rgba(139,123,255,.2); }
+label { color: var(--text-dim); font-size: 12.5px; letter-spacing: .5px; }
+
+/* ============ 浅色模式（默认）：深色为星空特效，浅色为日光风格 ============ */
+body.theme-light {
+    --glass-bg: #ffffff;
+    --glass-border: #e3e8f2;
+    --accent-1: #5d6cff;
+    --accent-2: #38a1e8;
+    --text: #2b3350;
+    --text-dim: #7a839c;
+    --danger: #e0455f;
+    --ok: #1e9e5a;
+    background:
+        radial-gradient(1000px 720px at 84% -8%, rgba(124,111,240,.09), transparent 62%),
+        radial-gradient(860px 620px at 4% 102%, rgba(54,163,240,.08), transparent 62%),
+        radial-gradient(560px 400px at 52% 42%, rgba(255,158,209,.06), transparent 65%),
+        radial-gradient(480px 360px at 30% 78%, rgba(74,222,128,.05), transparent 65%),
+        #ffffff;
+    color: var(--text);
+}
+body.theme-light .aurora,
+body.theme-light .nebula,
+body.theme-light #starfield { display: none; }
+/* 浅色光团：大面积柔焦色块缓慢漂移（高质量档动画 / 均衡静态 / 高性能隐藏） */
+.light-orb {
+    display: none; position: fixed; border-radius: 50%; z-index: 0; pointer-events: none;
+    filter: blur(64px); opacity: .55;
+}
+body.theme-light .light-orb { display: block; }
+.lo1 { width: 520px; height: 520px; top: -180px; right: -140px;
+       background: radial-gradient(circle, rgba(124,111,240,.42), transparent 70%);
+       animation: orbDrift 26s ease-in-out infinite alternate; }
+.lo2 { width: 460px; height: 460px; bottom: -220px; left: -160px;
+       background: radial-gradient(circle, rgba(54,163,240,.38), transparent 70%);
+       animation: orbDrift 32s ease-in-out infinite alternate-reverse; }
+.lo3 { width: 380px; height: 380px; top: 30%; right: -140px;
+       background: radial-gradient(circle, rgba(255,150,205,.30), transparent 70%);
+       animation: orbDrift 38s ease-in-out infinite alternate; }
+.lo4 { width: 320px; height: 320px; bottom: 6%; left: 24%;
+       background: radial-gradient(circle, rgba(79,222,140,.26), transparent 70%);
+       animation: orbDrift 42s ease-in-out infinite alternate-reverse; }
+@keyframes orbDrift {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(4%, -3%, 0) scale(1.12); }
+}
+body.perf-fast .light-orb { display: none !important; }
+body.perf-bal .light-orb { animation: none !important; }
+/* 卡片 / 侧栏 / 导航 */
+body.theme-light .glass {
+    background: #ffffff; border: 1px solid var(--glass-border); border-radius: 18px;
+    box-shadow: 0 2px 10px rgba(31,45,90,.05), 0 10px 30px rgba(31,45,90,.08);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+body.theme-light .glass::before { display: none; }
+body.theme-light .card-header { background: #f6f8fd; border-bottom: 1px solid #e7ecf5; }
+body.theme-light .card-header::before { display: none; }
+body.theme-light .sidebar {
+    background: #ffffff; border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 24px rgba(31,45,90,.08);
+}
+body.theme-light .sidebar-foot { border-top-color: #eef2f8; }
+body.theme-light .nav-item { color: var(--text-dim); }
+body.theme-light .nav-item:hover { background: #f0f4fb; color: var(--text); transform: translateX(3px); box-shadow: 0 2px 10px rgba(31,45,90,.06); }
+body.theme-light .nav-item::after { display: none; }
+body.theme-light .nav-item.active {
+    background: linear-gradient(90deg, rgba(93,108,255,.12), rgba(56,161,232,.08));
+    color: #4f5bd8; box-shadow: none;
+}
+body.theme-light .brand,
+body.theme-light .grad-text { background: linear-gradient(120deg, #5d6cff, #38a1e8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+body.theme-light .spin-star { color: #5d6cff; text-shadow: none; animation: none; }
+/* 统计 / 按钮 / 表单 / 表格 */
+body.theme-light .stat-card:hover { border-color: rgba(93,108,255,.4); box-shadow: 0 10px 30px rgba(93,108,255,.14); }
+body.theme-light .stat-value { text-shadow: none; }
+body.theme-light .btn-primary { background: linear-gradient(135deg, #5d6cff, #4f5bd8); box-shadow: 0 4px 14px rgba(93,108,255,.35); }
+body.theme-light .btn-primary:hover { box-shadow: 0 8px 22px rgba(93,108,255,.45); }
+body.theme-light .btn-secondary { background: #f1f4fa; border: 1px solid #dfe5f0; color: #3a425c; }
+body.theme-light .btn-secondary:hover { background: #e7ecf6; color: #2b3350; }
+body.theme-light .btn-danger { box-shadow: 0 4px 14px rgba(224,69,95,.3); }
+body.theme-light .form-control, body.theme-light .form-select { background: #ffffff; border-color: #d8dfeb; color: var(--text); }
+body.theme-light .form-control:focus, body.theme-light .form-select:focus {
+    background: #ffffff; color: var(--text); border-color: var(--accent-1);
+    box-shadow: 0 0 0 .2rem rgba(93,108,255,.14);
+}
+body.theme-light .form-control::placeholder { color: rgba(43,51,80,.35); }
+body.theme-light .form-control:read-only { background: #f1f4fa; color: var(--text); border-color: #dfe5f0; }
+body.theme-light .modal .form-control:read-only:focus { background: #f1f4fa; }
+body.theme-light .modal .form-control-plaintext { background: #ffffff; border-color: #d8dfeb; color: var(--text); }
+body.theme-light .table { color: var(--text); }
+body.theme-light .table thead th { color: #6b7490; border-color: #e7ecf5; }
+body.theme-light .table td { border-color: #eef2f8; }
+body.theme-light .table tbody tr:hover { background: rgba(93,108,255,.05); }
+body.theme-light .list-group-item { color: var(--text); border-color: #e7ecf5; }
+/* 手风琴 / 弹窗 / 分页 / 开关 / 日志 */
+body.theme-light .accordion-item { background: #ffffff; border-color: #e7ecf5; box-shadow: 0 2px 10px rgba(31,45,90,.06); }
+body.theme-light .accordion-button { background: #f6f8fd; color: var(--text); }
+body.theme-light .accordion-button:not(.collapsed) { background: rgba(93,108,255,.08); color: #4f5bd8; }
+body.theme-light .accordion-button::after { filter: none; }
+body.theme-light .accordion-body { color: var(--text); }
+body.theme-light .modal-content { background: #ffffff; border: 1px solid var(--glass-border); color: var(--text); box-shadow: 0 24px 70px rgba(31,45,90,.25); }
+body.theme-light .modal.show { background: rgba(47,58,92,.32); }
+body.theme-light .modal-header { border-bottom-color: #eef2f8; }
+body.theme-light .modal-footer { border-top-color: #eef2f8; }
+body.theme-light .btn-close { filter: none; }
+body.theme-light .pagination .page-link { background: #ffffff; border-color: #dfe5f0; color: #3a425c; }
+body.theme-light .pagination .page-item.active .page-link { background: linear-gradient(135deg, #5d6cff, #38a1e8); border-color: transparent; }
+body.theme-light .slider { background: #d9e0ec; box-shadow: inset 0 2px 4px rgba(31,45,90,.18); }
+body.theme-light .badge.bg-info { background: linear-gradient(135deg, #38a1e8, #5d6cff) !important; }
+body.theme-light .log-container { background: #fbfcff; border-color: #e3e8f2; box-shadow: inset 0 0 24px rgba(93,108,255,.05); }
+body.theme-light .log-entry { border-bottom-color: #eef2f8; color: #2b6f9e; }
+body.theme-light .chart-wrap { background: #ffffff; border-color: #eef2f8; }
+/* 登录页 */
+body.theme-light .login-overlay { background: radial-gradient(900px 600px at 50% 42%, rgba(124,111,240,.08), transparent 65%), rgba(255,255,255,.9); }
+body.theme-light .login-card { box-shadow: 0 16px 50px rgba(31,45,90,.16), 0 0 60px rgba(93,108,255,.08); }
+body.theme-light .orbit-ring { border-color: rgba(93,108,255,.45); box-shadow: 0 0 24px rgba(93,108,255,.18), inset 0 0 20px rgba(56,161,232,.12); }
+body.theme-light .dot.ok { box-shadow: 0 0 8px var(--ok); }
+body.theme-light .dot.bad { box-shadow: 0 0 8px var(--danger); }
+/* 浅色 · 配置引导 */
+body.theme-light .guide-overlay {
+    background: radial-gradient(900px 600px at 50% 40%, rgba(124,111,240,.07), transparent 65%), rgba(255,255,255,.88);
+}
+body.theme-light .guide-card {
+    background: linear-gradient(165deg, #ffffff, #f4f7fd);
+    border: 1px solid rgba(93,108,255,.3);
+    box-shadow: 0 20px 60px rgba(31,45,90,.18), 0 0 40px rgba(93,108,255,.10);
+}
+body.theme-light .guide-card::before { background: linear-gradient(90deg, transparent, rgba(93,108,255,.10), transparent); }
+body.theme-light .guide-orb { background: radial-gradient(circle, rgba(93,108,255,.16), transparent 70%); }
+body.theme-light .guide-progress { background: rgba(43,51,80,.08); }
+body.theme-light .guide-brand { color: var(--text); }
+body.theme-light .guide-title {
+    background: linear-gradient(120deg, #2b3350, #5d6cff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+body.theme-light .guide-desc p { color: #4a5470; }
+body.theme-light .guide-desc p b { color: #5d6cff; }
+body.theme-light .guide-link { background: rgba(93,108,255,.08); border-color: rgba(93,108,255,.35); color: #4f5bd8; }
+body.theme-light .guide-link:hover { background: rgba(93,108,255,.16); color: #3f48c8; }
+body.theme-light .guide-cur { background: #ffffff; border-color: rgba(93,108,255,.4); color: var(--text-dim); }
+body.theme-light .guide-form .form-control { background: #ffffff; border-color: #d8dfeb; color: var(--text); }
+body.theme-light .guide-form .form-control:focus { border-color: var(--accent-1); box-shadow: 0 0 0 3px rgba(93,108,255,.15); background: #ffffff; }
+body.theme-light .guide-dot { background: rgba(43,51,80,.18); }
+body.theme-light .guide-form p { color: #4a5470; }
+body.theme-light ::selection { background: rgba(93,108,255,.25); color: #fff; }
+body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
+</style>
+</head>
+<body>
+<script>
+// 首帧前应用本地记住的主题，避免刷新闪色
+(function () {
+    try {
+        var t = localStorage.getItem('star_theme');
+        if (t === 'dark' || t === 'light') {
+            var b = document.body;
+            b.classList.remove('theme-light', 'theme-dark');
+            b.classList.add('theme-' + t);
+        }
+    } catch (e) {}
+})();
+</script>
+<div class="nebula"></div>
+<div class="nebula n2"></div>
+<div class="aurora"></div>
+<div class="light-orb lo1"></div>
+<div class="light-orb lo2"></div>
+<div class="light-orb lo3"></div>
+<div class="light-orb lo4"></div>
+<canvas id="starfield"></canvas>
+
+<div id="app" style="position: relative; z-index: 5;">
+    <!-- 登录 -->
+    <transition name="fade">
+    <div class="login-overlay" v-if="!authed">
+        <div class="glass login-card">
+            <div class="orbit-ring"><span class="spin-star">✦</span></div>
+            <h4 class="grad-text mt-2 mb-1">{{ systemName }}控制台</h4>
+            <div class="text-muted small mb-4">穿过星海，进入管理中枢</div>
+            <input type="password" class="form-control mb-3" placeholder="访问密码" v-model="loginPassword" @keyup.enter="doLogin">
+            <button class="btn btn-primary w-100" @click="doLogin">进入星空</button>
+            <div class="text-danger mt-2 small" v-if="loginError">{{ loginError }}</div>
+        </div>
+    </div>
+    </transition>
+
+    <transition name="fade">
+    <div v-if="authed">
+        <div class="glass sidebar">
+            <div class="brand"><span class="spin-star">✦</span><span class="grad-text">{{ systemName }}</span></div>
+            <a href="#" @click.prevent="currentTab='dashboard'" class="nav-item" :class="navCls('dashboard')">◈ 仪表盘</a>
+            <a href="#" @click.prevent="currentTab='users'" class="nav-item" :class="navCls('users')">◈ 用户管理</a>
+            <a href="#" @click.prevent="currentTab='features'" class="nav-item" :class="navCls('features')">◈ 功能开关</a>
+            <a href="#" @click.prevent="currentTab='personas'" class="nav-item" :class="navCls('personas')">◈ 人设管理</a>
+            <a href="#" @click.prevent="currentTab='config'" class="nav-item" :class="navCls('config')">◈ 配置修改</a>
+            <a href="#" @click.prevent="currentTab='stats'" class="nav-item" :class="navCls('stats')">◈ 统计分析</a>
+            <a href="#" @click.prevent="currentTab='logs'" class="nav-item" :class="navCls('logs')">◈ 实时日志</a>
+            <a href="#" @click.prevent="currentTab='api'" class="nav-item" :class="navCls('api')">◈ API管理</a>
+            <div class="sidebar-foot">
+                <div class="foot-status">
+                    <span class="dot" :class="status.ai_health ? 'ok' : 'bad'"></span><span>星核{{ status.ai_health ? '稳定运转' : '状态异常' }}</span>
+                </div>
+                <button class="btn btn-sm btn-primary w-100" @click="toggleQuality">{{ status.ui_quality === 'fast' ? '高性能模式' : (status.ui_quality === 'balanced' ? '均衡模式' : '高质量模式') }} · 点击切换</button>
+                <button class="btn btn-sm btn-secondary w-100" @click="toggleTheme($event)">{{ status.theme === 'dark' ? '深色模式' : '浅色模式' }} · 点击切换</button>
+                <button class="btn btn-sm btn-secondary w-100" @click="startGuide">配置引导</button>
+            </div>
+        </div>
+
+        <div class="main">
+            <transition name="tabfade">
+            <div :key="currentTab">
+                <!-- 仪表盘 -->
+                <div v-if="currentTab=='dashboard'">
+                    <div class="row">
+                        <div class="col-md-4"><div class="card glass stat-card text-center"><div class="card-body">
+                            <div class="card-title">AI状态</div>
+                            <h3 class="stat-value"><span class="dot" :class="status.ai_health ? 'ok' : 'bad'"></span> {{ status.ai_health ? '正常' : '异常' }}</h3>
+                        </div></div></div>
+                        <div class="col-md-4"><div class="card glass stat-card text-center"><div class="card-body">
+                            <div class="card-title">总星尘</div><h3 class="stat-value grad-text">{{ status.total_stardust }}</h3>
+                        </div></div></div>
+                        <div class="col-md-4"><div class="card glass stat-card text-center"><div class="card-body">
+                            <div class="card-title">运行时长</div><h3 class="stat-value">{{ formatUptime(status.uptime) }}</h3>
+                        </div></div></div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6"><div class="card glass stat-card text-center"><div class="card-body">
+                            <div class="card-title">CPU使用率</div><h3 class="stat-value">{{ status.cpu_percent }}%</h3>
+                        </div></div></div>
+                        <div class="col-md-6"><div class="card glass stat-card text-center"><div class="card-body">
+                            <div class="card-title">内存使用率</div><h3 class="stat-value">{{ status.memory_percent }}%</h3>
+                        </div></div></div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-12"><div class="card glass"><div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div>
+                                <div class="card-title mb-1">NapCat 管理</div>
+                                <small class="text-muted">
+                                    <span class="dot" :class="napcat.running ? 'ok' : 'bad'"></span>
+                                    进程：{{ napcat.running ? '运行中' : '未运行' }} ｜
+                                    <span class="dot" :class="napcat.ready ? 'ok' : 'bad'"></span>
+                                    WebUI：{{ napcat.ready ? '已就绪' : '未就绪' }}
+                                    <template v-if="napcat.port">｜ 端口 {{ napcat.port }}</template>
+                                    <template v-if="napcat.exe">｜ 位置：{{ napcat.exe }}</template>
+                                    <template v-else>｜ 未检测到 NapCat 安装位置</template>
+                                </small>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-info" :disabled="napcatBusy" @click="openNapcat">打开 NapCat 页面</button>
+                                <button class="btn btn-info" :disabled="napcatBusy" @click="startNapcat">{{ napcatBusy ? '启动中...' : (napcat.running ? '已启动' : '启动 NapCat') }}</button>
+                            </div>
+                        </div></div></div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-12"><div class="card glass"><div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div>
+                                <div class="card-title mb-1">系统控制</div>
+                                <small class="text-muted">{{ restarting ? '重启中，网页将自动恢复...' : (stopped ? '机器人已停止，可关闭本页面' : (stopping ? '正在停止...' : '重启后不再弹出窗口，页面自动恢复；停止后机器人完全退出' )) }}</small>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-danger" :disabled="restarting || stopping" @click="stopBot">停止机器人</button>
+                                <button class="btn btn-danger" :disabled="restarting || stopping" @click="restartBot">重启机器人</button>
+                            </div>
+                        </div></div></div>
+                    </div>
+                </div>
+
+                <!-- 用户管理 -->
+                <div v-if="currentTab=='users'">
+                    <div class="card glass"><div class="card-header">用户列表</div><div class="card-body">
+                        <input type="text" class="form-control mb-3" placeholder="搜索QQ号或昵称" v-model="searchUser" @input="loadUsers(1)">
+                        <table class="table">
+                            <thead><tr><th>QQ号</th><th>昵称</th><th>星尘碎片</th><th>卡牌数量</th><th>人设</th><th>最后签到</th><th>操作</th></tr></thead>
+                            <tbody><tr v-for="u in users"><td>{{ u.qq }}</td><td>{{ u.nickname }}</td><td>{{ u.stardust }}</td><td>{{ u.cards }}</td><td>{{ u.persona }}</td><td>{{ u.last_signin }}</td><td><button class="btn btn-sm btn-info" @click="showUserDetail(u.qq)">详情</button></td></tr></tbody>
+                        </table>
+                        <nav><ul class="pagination"><li v-for="p in totalPages" :key="p" class="page-item" :class="{'active': p===currentPage}"><a class="page-link" href="#" @click.prevent="loadUsers(p)">{{ p }}</a></li></ul></nav>
+                    </div></div>
+                </div>
+
+                <!-- 用户详情模态框 -->
+                <transition name="fade">
+                <div class="modal show" tabindex="-1" v-if="showUserModal">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header"><h5>用户详情 · {{ userDetail.nickname }}</h5><button type="button" class="btn-close" @click="showUserModal=false"></button></div>
+                            <div class="modal-body">
+                                <div class="row mb-3">
+                                    <div class="col-4"><label>昵称</label><div class="form-control-plaintext">{{ userDetail.nickname }}</div></div>
+                                    <div class="col-4"><label>QQ号</label><div class="form-control-plaintext">{{ userDetail.qq }}</div></div>
+                                    <div class="col-4"><label>人设</label><div class="form-control-plaintext">{{ userDetail.persona }}</div></div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-4"><label>最后签到</label><div class="form-control-plaintext">{{ userDetail.last_signin }}</div></div>
+                                    <div class="col-8" v-if="userDetail.planet">
+                                        <label>星球</label>
+                                        <div class="form-control-plaintext">「{{ userDetail.planet.name }}」 Lv.{{ userDetail.planet.level }} · 能量 {{ userDetail.planet.energy }}/100 · 连续照料 {{ userDetail.planet.streak }} 天</div>
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-4">
+                                        <label>星尘碎片（可修改）</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" v-model.number="userDetail.stardust" min="0">
+                                            <button class="btn btn-primary" @click="saveUserStardust">保存</button>
+                                        </div>
+                                    </div>
+                                    <div class="col-8">
+                                        <label>卡牌（{{ userDetail.cards.length }} 张）</label>
+                                        <div style="max-height:110px;overflow-y:auto">
+                                            <span v-for="c in userDetail.cards" :key="c" class="badge me-1 mb-1" :class="c.startsWith('SSR')?'bg-danger':c.startsWith('SR')?'bg-warning':'bg-secondary'">{{ c }}</span>
+                                            <span v-if="!userDetail.cards.length" class="text-muted">无卡牌</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-end mt-2">
+                                    <button class="btn btn-danger" @click="deleteUser(userDetail.qq)">删除该用户全部数据</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </transition>
+
+                <!-- 功能开关 -->
+                <div v-if="currentTab=='features'">
+                    <div class="card glass"><div class="card-header">功能开关与菜单定制</div><div class="card-body">
+                        <div v-for="(val, name) in features" :key="name" class="mb-3 d-flex justify-content-between align-items-center">
+                            <span>{{ name }}</span>
+                            <div>
+                                <label class="switch me-2"><input type="checkbox" v-model="features[name]" @change="toggleFeature(name)"><span class="slider"></span></label>
+                                <button class="btn btn-sm btn-secondary menu-edit-btn" @click="openMenuEditor(name)">编辑菜单</button>
+                            </div>
+                        </div>
+                    </div></div>
+                </div>
+
+                <!-- 人设管理 -->
+                <div v-if="currentTab=='personas'">
+                    <div class="card glass"><div class="card-header">人设管理</div><div class="card-body">
+                        <div v-for="(item, name) in personalities" :key="name" class="mb-3 border p-2 rounded" style="border-color: rgba(255,255,255,.12) !important;">
+                            <div class="mb-2"><strong class="grad-text">{{ name }}</strong></div>
+                            <div class="mb-2">
+                                <label>人设类型</label>
+                                <select class="form-select form-select-sm" v-model="item.type" @change="savePersonalities">
+                                    <option value="normal">普通</option><option value="yandere">病娇</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>提示词</label>
+                                <textarea class="form-control" rows="2" v-model="item.prompt"></textarea>
+                                <div class="mt-2 text-end">
+                                    <button class="btn btn-sm btn-primary" @click="savePersonalities">保存修改</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <h6>新增人设</h6>
+                            <div class="row">
+                                <div class="col"><input type="text" class="form-control" placeholder="名称" v-model="newPersonaName"></div>
+                                <div class="col"><select class="form-select" v-model="newPersonaType"><option value="normal">普通</option><option value="yandere">病娇</option></select></div>
+                                <div class="col-6"><textarea class="form-control" rows="1" placeholder="提示词" v-model="newPersonaPrompt"></textarea></div>
+                                <div class="col-auto"><button class="btn btn-success" @click="addPersona">添加</button></div>
+                            </div>
+                        </div>
+                    </div></div>
+                </div>
+
+                <!-- 配置修改 -->
+                <div v-if="currentTab=='config'">
+                    <div class="card glass"><div class="card-header">系统配置</div><div class="card-body">
+                        <div class="accordion" id="configAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#basic">基础设置</button></h2>
+                                <div id="basic" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-3"><label>面板访问密码</label><input type="text" class="form-control" v-model="config.web_password" @change="saveConfig('web_password', config.web_password)"><small class="text-muted">留空则不启用登录认证，保存后立即生效</small></div>
+                                        <div class="mb-3 d-flex align-items-center justify-content-between">
+                                            <div><label class="mb-1">启动后自动打开浏览器</label><small class="text-muted d-block">机器人启动完成后自动用默认浏览器打开控制台（浏览器已开着则在新标签页打开）</small></div>
+                                            <label class="switch"><input type="checkbox" :checked="config.web_auto_open_browser !== false" @change="saveConfig('web_auto_open_browser', $event.target.checked)"><span class="slider"></span></label>
+                                        </div>
+                                        <div class="mb-3 d-flex align-items-center justify-content-between">
+                                            <div><label class="mb-1">桌面管理窗口</label><small class="text-muted d-block">开启后用原生窗口展示控制台；关闭则自动打开浏览器访问</small></div>
+                                            <label class="switch"><input type="checkbox" :checked="config.web_desktop_enabled !== false" @change="saveConfig('web_desktop_enabled', $event.target.checked)"><span class="slider"></span></label>
+                                        </div>
+                                        <div class="mb-3"><label>签到最小碎片</label><input type="number" class="form-control" v-model="config.signin_min_reward" @change="saveConfig('signin_min_reward', config.signin_min_reward)"></div>
+                                        <div class="mb-3"><label>签到最大碎片</label><input type="number" class="form-control" v-model="config.signin_max_reward" @change="saveConfig('signin_max_reward', config.signin_max_reward)"></div>
+                                        <div class="mb-3"><label>抽卡消耗碎片</label><input type="number" class="form-control" v-model="config.draw_cost" @change="saveConfig('draw_cost', config.draw_cost)"></div>
+                                        <div class="mb-3"><label>塔罗消耗碎片</label><input type="number" class="form-control" v-model="config.tarot_cost" @change="saveConfig('tarot_cost', config.tarot_cost)"></div>
+                                        <div class="mb-3"><label>进群欢迎语</label><input type="text" class="form-control" v-model="config.welcome_message" @change="saveConfig('welcome_message', config.welcome_message)" placeholder="留空使用默认：欢迎！送你 X 星尘。"><small class="text-muted">支持占位符：<code>{qq}</code> 新成员QQ、<code>{bonus}</code> 赠送碎片数、<code>{currency}</code> 货币名</small></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#connkeys">连接与密钥</button></h2>
+                                <div id="connkeys" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-3"><label>NapCat 连接地址（含 access_token）</label><input type="text" class="form-control" v-model="config.ws_url" @change="saveConfig('ws_url', config.ws_url)"><small class="text-muted">修改后需重启生效</small></div>
+                                        <div class="mb-3"><label>OpenRouter API Key（旧版默认 Key，新用户请到「AI API提供商」中添加）</label><input type="password" class="form-control" v-model="config.api_key" @change="saveConfig('api_key', config.api_key)"></div>
+                                        <div class="mb-3"><label>好友列表 HTTP Token（备用接口，现主要走 websocket）</label><input type="text" class="form-control" v-model="config.friend_api_token" @change="saveConfig('friend_api_token', config.friend_api_token)"></div>
+                                        <hr>
+                                        <h6>邮件通知</h6>
+                                        <div class="mb-3"><label>邮件通知开关</label>
+                                            <select class="form-select" v-model="config.email.enable" @change="saveConfig('email_enable', config.email.enable)">
+                                                <option :value="true">开启</option><option :value="false">关闭</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3"><label>SMTP 服务器</label><input type="text" class="form-control" v-model="config.email.smtp_server" @change="saveConfig('email_smtp_server', config.email.smtp_server)"></div>
+                                        <div class="mb-3"><label>SMTP 端口</label><input type="number" class="form-control" v-model="config.email.smtp_port" @change="saveConfig('email_smtp_port', config.email.smtp_port)"></div>
+                                        <div class="mb-3"><label>发件邮箱</label><input type="text" class="form-control" v-model="config.email.sender" @change="saveConfig('email_sender', config.email.sender)"></div>
+                                        <div class="mb-3"><label>邮箱授权码</label><input type="password" class="form-control" v-model="config.email.password" @change="saveConfig('email_password', config.email.password)"></div>
+                                        <div class="mb-3"><label>收件邮箱</label><input type="text" class="form-control" v-model="config.email.receiver" @change="saveConfig('email_receiver', config.email.receiver)"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#memory">记忆设置</button></h2>
+                                <div id="memory" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-3"><label>记忆超时（秒）</label><input type="number" class="form-control" v-model="config.memory_timeout_seconds" @change="saveConfig('memory_timeout_seconds', config.memory_timeout_seconds)"></div>
+                                        <div class="mb-3"><label>自动总结触发消息数</label><input type="number" class="form-control" v-model="config.memory_max_messages" @change="saveConfig('memory_max_messages', config.memory_max_messages)"></div>
+                                        <div class="mb-3"><label>长期记忆模式</label>
+                                            <select class="form-select" v-model="config.memory_mode" @change="saveConfig('memory_mode', config.memory_mode)">
+                                                <option value="ai_summary">AI智能总结（推荐）</option>
+                                                <option value="raw_text">原始对话文本（占用空间大）</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#drawprob">抽卡概率</button></h2>
+                                <div id="drawprob" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-3"><label>SSR 概率</label><input type="number" step="0.01" class="form-control" v-model="config.ssr_prob" @change="saveConfig('ssr_prob', config.ssr_prob)"></div>
+                                        <div class="mb-3"><label>SR 概率</label><input type="number" step="0.01" class="form-control" v-model="config.sr_prob" @change="saveConfig('sr_prob', config.sr_prob)"></div>
+                                        <div class="mb-3"><label>R 概率</label><input type="number" step="0.01" class="form-control" v-model="config.r_prob" @change="saveConfig('r_prob', config.r_prob)"></div>
+                                        <small class="text-muted">概率之和应为1，修改后重启生效</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#yandere">病娇设置</button></h2>
+                                <div id="yandere" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-3">
+                                            <label>病娇白名单（只有这些QQ号可以使用病娇人设）</label>
+                                            <div class="input-group mb-2">
+                                                <input type="text" class="form-control" placeholder="输入QQ号" v-model="newWhitelistQQ">
+                                                <button class="btn btn-primary" @click="addWhitelistQQ">添加</button>
+                                            </div>
+                                            <ul class="list-group">
+                                                <li v-for="qq in yandereWhitelist" :key="qq" class="list-group-item d-flex justify-content-between align-items-center">
+                                                    {{ qq }}
+                                                    <button class="btn btn-sm btn-danger" @click="removeWhitelistQQ(qq)">移除</button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label>主动消息开关</label>
+                                            <select class="form-select" v-model="config.yandere_active_enabled" @change="saveConfig('yandere_active_enabled', config.yandere_active_enabled)">
+                                                <option value="true">开启</option><option value="false">关闭</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3"><label>主动消息间隔（秒，最小）</label><input type="number" class="form-control" v-model="config.yandere_active_min_interval" @change="saveConfig('yandere_active_min_interval', config.yandere_active_min_interval)"></div>
+                                        <div class="mb-3"><label>主动消息间隔（秒，最大）</label><input type="number" class="form-control" v-model="config.yandere_active_max_interval" @change="saveConfig('yandere_active_max_interval', config.yandere_active_max_interval)"></div>
+                                        <div class="mb-3"><label>用户交互后冷却时间（秒）</label><input type="number" class="form-control" v-model="config.yandere_active_cooldown" @change="saveConfig('yandere_active_cooldown', config.yandere_active_cooldown)"></div>
+                                        <div class="mb-3"><label>主动消息时段（开始小时，0-23）</label><input type="number" class="form-control" v-model="config.yandere_active_start_hour" @change="saveConfig('yandere_active_start_hour', config.yandere_active_start_hour)"></div>
+                                        <div class="mb-3"><label>主动消息时段（结束小时，0-23）</label><input type="number" class="form-control" v-model="config.yandere_active_end_hour" @change="saveConfig('yandere_active_end_hour', config.yandere_active_end_hour)"></div>
+                                        <div class="mb-3"><label>主动消息跳过概率（0-1，模拟真人不想说话）</label><input type="number" step="0.05" class="form-control" v-model="config.yandere_active_skip_prob" @change="saveConfig('yandere_active_skip_prob', config.yandere_active_skip_prob)"></div>
+                                        <div class="mb-3"><label>打字延迟下限（秒）</label><input type="number" step="0.5" class="form-control" v-model="config.yandere_typing_min" @change="saveConfig('yandere_typing_min', config.yandere_typing_min)"></div>
+                                        <div class="mb-3"><label>打字延迟上限（秒）</label><input type="number" step="0.5" class="form-control" v-model="config.yandere_typing_max" @change="saveConfig('yandere_typing_max', config.yandere_typing_max)"></div>
+                                        <div class="mb-3"><label>单次会话消息数上限（到达后自然收尾）</label><input type="number" class="form-control" v-model="config.yandere_session_max_msgs" @change="saveConfig('yandere_session_max_msgs', config.yandere_session_max_msgs)"></div>
+                                        <div class="mb-3"><label>单次会话时长上限（分钟）</label><input type="number" class="form-control" v-model="config.yandere_session_max_minutes" @change="saveConfig('yandere_session_max_minutes', config.yandere_session_max_minutes)"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div></div>
+                </div>
+
+                <!-- 统计分析 -->
+                <div v-if="currentTab=='stats'">
+                    <div class="row">
+                        <div class="col-md-3"><div class="card glass stat-card text-center"><div class="card-body"><div class="card-title">用户总数</div><h3 class="stat-value grad-text">{{ stats.total_users }}</h3></div></div></div>
+                        <div class="col-md-3"><div class="card glass stat-card text-center"><div class="card-body"><div class="card-title">今日签到</div><h3 class="stat-value grad-text">{{ stats.signed_today }}</h3></div></div></div>
+                        <div class="col-md-3"><div class="card glass stat-card text-center"><div class="card-body"><div class="card-title">总星尘</div><h3 class="stat-value grad-text">{{ stats.total_stardust }}</h3></div></div></div>
+                        <div class="col-md-3"><div class="card glass stat-card text-center"><div class="card-body"><div class="card-title">总卡牌</div><h3 class="stat-value grad-text">{{ stats.total_cards }}</h3></div></div></div>
+                    </div>
+                    <div class="card glass mt-3"><div class="card-header">签到趋势（近7天）</div><div class="card-body"><div class="chart-wrap"><canvas id="signinChart"></canvas></div></div></div>
+                    <div class="row mt-3">
+                        <div class="col-md-6"><div class="card glass"><div class="card-header">星尘分布</div><div class="card-body"><div class="chart-wrap"><canvas id="stardustChart"></canvas></div></div></div></div>
+                        <div class="col-md-6"><div class="card glass"><div class="card-header">卡牌稀有度分布</div><div class="card-body"><div class="chart-wrap"><canvas id="tierChart"></canvas></div></div></div></div>
+                    </div>
+                </div>
+
+                <!-- 实时日志 -->
+                <div v-if="currentTab=='logs'">
+                    <div class="card glass"><div class="card-header">控制台日志</div><div class="card-body"><div class="log-container" ref="logContainer"><div v-for="log in logs" :key="log.id" class="log-entry">{{ log.text }}</div></div></div></div>
+                </div>
+
+                <!-- API管理 -->
+                <div v-if="currentTab=='api'">
+                    <div class="card glass">
+                        <div class="card-header d-flex justify-content-between"><span>AI API提供商</span><button class="btn btn-sm btn-success" @click="showAddApiModal">+ 添加API</button></div>
+                        <div class="card-body">
+                            <table class="table">
+                                <thead><tr><th>名称</th><th>模型</th><th>优先级</th><th>今日使用/限额</th><th>状态</th><th>操作</th></tr></thead>
+                                <tbody><tr v-if="apiProviders.length===0"><td colspan="6" class="text-center text-secondary py-3">暂无API提供商，点击右上角「+ 添加API」填入自己的 Key 后即可使用AI功能</td></tr><tr v-for="api in apiProviders"><td>{{ api.name }}<span v-if="api.is_public_welfare" class="badge bg-info ms-1">公益</span></td>
+                                <td>{{ api.model_name }}</td>
+                                <td><input type="number" class="form-control form-control-sm" style="width:70px" v-model="api.priority" @change="updatePriority(api)"></td>
+                                <td>{{ api.used_today }} / {{ api.max_requests_per_day===0 ? '∞' : api.max_requests_per_day }}</td>
+                                <td><span v-if="!api.enabled" class="text-secondary">禁用</span><span v-else-if="api.fail_count>=3" class="text-warning">临时禁用</span><span v-else-if="api.max_requests_per_day>0 && api.used_today>=api.max_requests_per_day" class="text-danger">额度已满</span><span v-else class="text-success">可用</span></td>
+                                <td><button class="btn btn-sm btn-info" @click="editApi(api)">编辑</button><button class="btn btn-sm btn-info" @click="testApi(api)">测试</button><button class="btn btn-sm btn-warning" @click="toggleApi(api)">{{ api.enabled ? '禁用' : '启用' }}</button><button class="btn btn-sm btn-danger" @click="deleteApi(api)">删除</button></td>
+                                </tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- 编辑模态框 -->
+                    <transition name="fade">
+                    <div class="modal show" tabindex="-1" v-if="showEditModal">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header"><h5>编辑API</h5><button type="button" class="btn-close" @click="showEditModal=false"></button></div>
+                                <div class="modal-body">
+                                    <input type="text" class="form-control mb-2" placeholder="名称" v-model="editApiData.name">
+                                    <input type="text" class="form-control mb-2" placeholder="API Key" v-model="editApiData.api_key">
+                                    <input type="text" class="form-control mb-2" placeholder="Base URL" v-model="editApiData.base_url">
+                                    <input type="text" class="form-control mb-2" placeholder="模型名称" v-model="editApiData.model_name">
+                                    <input type="number" class="form-control mb-2" placeholder="优先级" v-model="editApiData.priority">
+                                    <input type="number" class="form-control mb-2" placeholder="每日限额" v-model="editApiData.max_requests_per_day">
+                                    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" v-model="editApiData.is_public_welfare"> 公益API</div>
+                                    <input type="text" class="form-control mb-2" placeholder="提供商名称" v-model="editApiData.provider_name">
+                                    <input type="text" class="form-control mb-2" placeholder="官方控制台URL" v-model="editApiData.admin_url">
+                                </div>
+                                <div class="modal-footer"><button class="btn btn-primary" @click="saveEditApi">保存</button><button class="btn btn-secondary" @click="showEditModal=false">取消</button></div>
+                            </div>
+                        </div>
+                    </div>
+                    </transition>
+                    <!-- 添加模态框 -->
+                    <transition name="fade">
+                    <div class="modal show" tabindex="-1" v-if="showAddModal">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header"><h5>添加API</h5><button type="button" class="btn-close" @click="showAddModal=false"></button></div>
+                                <div class="modal-body">
+                                    <input type="text" class="form-control mb-2" placeholder="名称" v-model="newApi.name">
+                                    <input type="text" class="form-control mb-2" placeholder="API Key" v-model="newApi.api_key">
+                                    <input type="text" class="form-control mb-2" placeholder="Base URL" v-model="newApi.base_url">
+                                    <input type="text" class="form-control mb-2" placeholder="模型名称" v-model="newApi.model_name">
+                                    <input type="number" class="form-control mb-2" placeholder="优先级" v-model="newApi.priority">
+                                    <input type="number" class="form-control mb-2" placeholder="每日限额" v-model="newApi.max_requests_per_day">
+                                    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" v-model="newApi.is_public_welfare"> 公益API</div>
+                                    <input type="text" class="form-control mb-2" placeholder="提供商名称" v-model="newApi.provider_name">
+                                    <input type="text" class="form-control mb-2" placeholder="官方控制台URL" v-model="newApi.admin_url">
+                                </div>
+                                <div class="modal-footer"><button class="btn btn-primary" @click="addApi">添加</button></div>
+                            </div>
+                        </div>
+                    </div>
+                    </transition>
+                </div>
+            </div>
+            </transition>
+        </div>
+    </div>
+    </transition>
+
+    <!-- 轻提示 Toast -->
+    <transition name="fade">
+    <div class="toast-box" v-if="toastMsg" @click="toastMsg=''">
+        <div class="toast-inner">{{ toastMsg }}</div>
+    </div>
+    </transition>
+
+    <!-- 操作确认模态框 -->
+    <transition name="fade">
+    <div class="modal show" tabindex="-1" v-if="confirmDlg.show">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5>{{ confirmDlg.title }}</h5><button type="button" class="btn-close" @click="confirmCancel"></button></div>
+                <div class="modal-body"><p style="white-space:pre-line;margin:0">{{ confirmDlg.text }}</p></div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @click="confirmCancel">取消</button>
+                    <button class="btn" :class="confirmDlg.danger ? 'btn-danger' : 'btn-primary'" @click="confirmOk">{{ confirmDlg.okText || '确定' }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    </transition>
+
+    <!-- 菜单编辑模态框 -->
+    <transition name="fade">
+    <div class="modal show" tabindex="-1" v-if="showMenuEditor">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5>编辑菜单文本</h5><button type="button" class="btn-close" @click="showMenuEditor=false"></button></div>
+                <div class="modal-body">
+                    <p>功能：{{ editingFeatureName }}</p>
+                    <textarea class="form-control" rows="3" v-model="editingMenuText" placeholder="菜单显示文本（纯文字）"></textarea>
+                    <p class="text-muted">留空恢复默认</p>
+                </div>
+                <div class="modal-footer"><button class="btn btn-primary" @click="saveMenuText">保存</button><button class="btn btn-secondary" @click="showMenuEditor=false">取消</button></div>
+            </div>
+        </div>
+    </div>
+    </transition>
+
+    <!-- ========== 配置引导 ========== -->
+    <div class="guide-overlay" v-if="showGuide">
+        <div class="guide-orb" style="width:220px;height:220px;left:6%;top:16%;animation-delay:0s"></div>
+        <div class="guide-orb" style="width:160px;height:160px;right:8%;top:12%;animation-delay:.9s"></div>
+        <div class="guide-orb" style="width:180px;height:180px;left:14%;bottom:10%;animation-delay:1.7s"></div>
+        <div class="guide-orb" style="width:200px;height:200px;right:12%;bottom:16%;animation-delay:2.4s"></div>
+        <div class="guide-card">
+            <div class="guide-progress"><div class="guide-progress-fill" :style="{ width: ((guideStep + 1) / guideSteps.length * 100) + '%' }"></div></div>
+            <div class="guide-top">
+                <span class="guide-brand">{{ systemName }} · 配置引导</span>
+                <span class="guide-stepno">第 {{ guideStep + 1 }} / {{ guideSteps.length }} 步</span>
+            </div>
+            <transition name="guide-step" mode="out-in">
+                <div class="guide-body" :key="guideStep">
+                    <div class="guide-icon">{{ guideStep + 1 }}</div>
+                    <h3 class="guide-title">{{ guideSteps[guideStep].title }}<span class="guide-state" :class="guideState(guideStep).cls" v-if="guideState(guideStep).text">{{ guideState(guideStep).text }}</span></h3>
+                    <div class="guide-desc">
+                        <p v-for="(t, ti) in guideSteps[guideStep].desc" :key="ti" v-html="t"></p>
+                    </div>
+                    <div class="guide-form" v-if="guideSteps[guideStep].state === 'qq'">
+                        <label>ws_url（NapCat WebSocket 地址）<span class="guide-req">必填</span></label>
+                        <input class="form-control" v-model="guideForm.ws_url" placeholder="ws://127.0.0.1:3001">
+                        <div class="guide-form-row">
+                            <div><label>bot_qq（机器人 QQ）<span class="guide-req">必填</span></label><input class="form-control" v-model="guideForm.bot_qq" placeholder="机器人 QQ 号"></div>
+                            <div><label>master_qq（管理员 QQ）<span class="guide-req">必填</span></label><input class="form-control" v-model="guideForm.master_qq" placeholder="管理 QQ 号"></div>
+                        </div>
+                        <label>web_password（面板密码，可留空）</label>
+                        <input class="form-control" type="password" v-model="guideForm.web_password" placeholder="留空则打开面板无需密码">
+                        <label>friend_api_token（NapCat 需要鉴权时才填）</label>
+                        <input class="form-control" v-model="guideForm.friend_api_token" placeholder="一般留空">
+                        <div class="guide-form-divider">以下为可选</div>
+                        <label>bot_display_name（机器人名称，显示在菜单图标题）</label>
+                        <input class="form-control" v-model="guideForm.bot_display_name" placeholder="留空则使用系统名称">
+                        <label>currency_name（星尘碎片的自定义名称）</label>
+                        <input class="form-control" v-model="guideForm.currency_name" placeholder="默认：星尘">
+                        <button class="btn btn-primary btn-sm" @click="saveGuideStep">保存配置</button>
+                        <span class="guide-save-msg" :class="guideSaveOk ? 'ok' : 'no'" v-if="guideSaveMsg">{{ guideSaveMsg }}</span>
+                    </div>
+                    <div class="guide-form" v-if="guideSteps[guideStep].state === 'api'">
+                        <label>base_url（接口地址）<span class="guide-req">必填</span></label>
+                        <input class="form-control" v-model="guideForm.base_url" placeholder="https://openrouter.ai/api/v1">
+                        <label>model_name（模型名）<span class="guide-req">必填</span></label>
+                        <input class="form-control" v-model="guideForm.model_name" placeholder="如 openai/gpt-4o-mini">
+                        <label>api_key（密钥）<span class="guide-req">必填</span></label>
+                        <input class="form-control" type="password" v-model="guideForm.api_key" placeholder="sk-or-...">
+                        <button class="btn btn-primary btn-sm" @click="saveGuideStep">保存配置</button>
+                        <span class="guide-save-msg" :class="guideSaveOk ? 'ok' : 'no'" v-if="guideSaveMsg">{{ guideSaveMsg }}</span>
+                    </div>
+                    <div class="guide-links" v-if="guideSteps[guideStep].links && guideSteps[guideStep].links.length">
+                        <a v-for="(l, li) in guideSteps[guideStep].links" :key="li" class="guide-link" :href="l.url" target="_blank" rel="noopener">&#8618; {{ l.label }}</a>
+                    </div>
+                    <div class="guide-cur" v-if="guideCur(guideStep) !== null"><b>当前：</b>{{ guideCur(guideStep) }}</div>
+                </div>
+            </transition>
+            <div class="guide-dots">
+                <span v-for="(s, i) in guideSteps" :key="i" class="guide-dot" :class="{ 'active': i === guideStep }"></span>
+            </div>
+            <div class="guide-actions">
+                <div class="guide-left">
+                    <button class="btn btn-secondary btn-sm" @click="prevGuide" :disabled="guideStep === 0">&#8249; 上一步</button>
+                </div>
+                <div class="guide-right">
+                    <button class="btn btn-sm btn-secondary guide-skip" @click="skipStep" v-if="guideStep < guideSteps.length - 1">跳过此步</button>
+                    <button class="btn btn-primary btn-sm guide-next" @click="nextGuide">{{ guideStep < guideSteps.length - 1 ? '下一步 →' : '完成' }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ================= 星空背景动画（按渲染档位调节密度/帧率/流星） =================
+(function () {
+    const canvas = document.getElementById('starfield');
+    const ctx = canvas.getContext('2d');
+    const BODY_CLS = document.body.classList;
+    const PERF_FAST = BODY_CLS.contains('perf-fast');
+    const PERF_BAL = BODY_CLS.contains('perf-bal');
+    // 高质量：60fps、280 星、流星密集；均衡：25fps、140 星、流星减半
+    const FRAME_MS = PERF_BAL ? 40 : 16;
+    const MAX_STARS = PERF_BAL ? 140 : 280;
+    const DENSITY = PERF_BAL ? 12000 : 6000;
+    const METEOR_EXTRA = PERF_BAL ? 2.5 : 1;
+    let stars = [], W, H;
+    let starRunning = false;
+    window.__star = {
+        setDark(dark) {
+            starRunning = dark && !PERF_FAST;
+            if (starRunning) { resize(); }
+        }
+    };
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        initStars();
+    }
+    function initStars(n) {
+        const count = n || Math.min(MAX_STARS, Math.floor(W * H / DENSITY));
+        stars = Array.from({ length: count }, () => ({
+            x: Math.random() * W, y: Math.random() * H,
+            r: Math.random() * 1.5 + 0.3,
+            tw: Math.random() * Math.PI * 2,
+            ts: Math.random() * 0.02 + 0.004,
+            hue: Math.random() > 0.85 ? (Math.random() > 0.5 ? '185, 243, 255' : '190, 175, 255') : '255, 255, 255'
+        }));
+    }
+    let meteor = null, nextMeteor = performance.now() + 2500 * METEOR_EXTRA;
+    let lastFrame = 0;
+    function spawnMeteor() {
+        const fromLeft = Math.random() > 0.5;
+        meteor = {
+            x: Math.random() * W * 0.7 + (fromLeft ? 0 : W * 0.3),
+            y: Math.random() * H * 0.35,
+            vx: (Math.random() * 6 + 5) * (fromLeft ? 1 : -1),
+            vy: Math.random() * 3 + 2.5,
+            life: 1, len: 130
+        };
+        nextMeteor = performance.now() + (3500 + Math.random() * 5500) * METEOR_EXTRA;
+    }
+    function animate() {
+        requestAnimationFrame(animate);
+        if (!starRunning) return;
+        const now = performance.now();
+        if (now - lastFrame < FRAME_MS) return;
+        lastFrame = now;
+        // 窗口/标签页不可见或已登录（登录层被移除）时停止作画
+        if (document.hidden) return;
+        if (!document.querySelector('.login-overlay')) return;
+        ctx.clearRect(0, 0, W, H);
+        for (const s of stars) {
+            const a = 0.3 + 0.7 * Math.abs(Math.sin(s.tw));
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(' + s.hue + ',' + a.toFixed(3) + ')';
+            ctx.fill();
+            s.tw += s.ts;
+        }
+        if (!meteor) {
+            if (performance.now() > nextMeteor) spawnMeteor();
+        } else {
+            const m = meteor;
+            const g = ctx.createLinearGradient(m.x, m.y, m.x - m.vx * m.len / 10, m.y - m.vy * m.len / 10);
+            g.addColorStop(0, 'rgba(255,255,255,' + (m.life * 0.95).toFixed(3) + ')');
+            g.addColorStop(1, 'rgba(139,123,255,0)');
+            ctx.strokeStyle = g;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(m.x, m.y);
+            ctx.lineTo(m.x - m.vx * m.len / 10, m.y - m.vy * m.len / 10);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(m.x, m.y, 1.8, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,' + m.life.toFixed(3) + ')';
+            ctx.fill();
+            m.x += m.vx; m.y += m.vy; m.life -= 0.012;
+            if (m.life <= 0) meteor = null;
+        }
+        requestAnimationFrame(animate);
+    }
+    window.addEventListener('resize', resize);
+    // 高性能或浅色模式：不启动星空
+    window.__star.setDark(document.body.classList.contains('theme-dark'));
+    animate();
+})();
+
+// ================= 认证拦截 =================
+let vm = null;
+axios.interceptors.request.use(cfg => {
+    const t = localStorage.getItem('star_token');
+    if (t) cfg.headers['X-Auth-Token'] = t;
+    return cfg;
+});
+axios.interceptors.response.use(r => r, err => {
+    if (err.response && err.response.status === 401 && vm) {
+        localStorage.removeItem('star_token');
+        vm.authed = false;
+        vm.loginError = '';
+    }
+    return Promise.reject(err);
+});
+
+// ================= Vue 应用 =================
+// 图表配色跟随当前主题（切换主题时重取）
+function chartTheme() {
+    const dark = document.body.classList.contains('theme-dark');
+    return {
+        txt: dark ? '#9aa4c7' : '#5b6478',
+        grid: dark ? 'rgba(255,255,255,0.08)' : 'rgba(43,51,80,0.08)',
+        pieBorder: dark ? 'rgba(4,6,15,.8)' : '#fff'
+    };
+}
+Chart.defaults.color = chartTheme().txt;
+Chart.defaults.borderColor = chartTheme().grid;
+Chart.defaults.plugins.legend.labels.boxWidth = 14;
+
+var socket = io({ query: { token: localStorage.getItem('star_token') || '' } });
+new Vue({
+    el: '#app',
+    data: {
+        systemName: '群星聚合',
+        authed: true,
+        loginPassword: '',
+        loginError: '',
+        currentTab: 'dashboard',
+        status: { ai_health: false, total_stardust: 0, uptime: 0, cpu_percent: 0, memory_percent: 0, guide_auto: true, theme: 'light' },
+        guideAutoKnown: false,
+        users: [], totalPages: 0, currentPage: 1, searchUser: '',
+        showUserModal: false, userDetail: { cards: [], planet: null }, stats: { total_users: 0, signed_today: 0, total_stardust: 0, total_cards: 0 },
+        features: {}, config: { email: {} }, personalities: {}, personasLoaded: false,
+        restarting: false, logs: [], logId: 0,
+        stopping: false,
+        stopped: false,
+        confirmDlg: { show: false, title: '', text: '', okText: '确定', danger: false, onOk: null },
+        napcat: { running: false, ready: false, port: null, token: '', url: '' },
+        napcatBusy: false,
+        napcatWaitTimer: null,
+        toastMsg: '',
+        newPersonaName: '', newPersonaPrompt: '', newPersonaType: 'normal',
+        apiProviders: [], showAddModal: false, showEditModal: false,
+        newApi: { name: '', api_key: '', base_url: '', model_name: '', priority: 100, max_requests_per_day: 0, is_public_welfare: false, provider_name: '', admin_url: '' },
+        editApiData: { id: null, name: '', api_key: '', base_url: '', model_name: '', priority: 100, max_requests_per_day: 0, is_public_welfare: false, provider_name: '', admin_url: '' },
+        showMenuEditor: false,
+        editingFeatureKey: '',
+        editingFeatureName: '',
+        editingMenuText: '',
+        menuTexts: {},
+        yandereWhitelist: [],
+        newWhitelistQQ: '',
+        showGuide: false,
+        guideStep: 0,
+        guideForm: { ws_url: '', bot_qq: '', master_qq: '', web_password: '', friend_api_token: '', api_key: '', base_url: '', model_name: '', bot_display_name: '', currency_name: '' },
+        guideSaveMsg: '',
+        guideSaveOk: false,
+        _chart1: null,
+        _chart2: null
+    },
+    computed: {
+        guideSteps() {
+            return [
+                {
+                    title: '搭建 NapCat（QQ 消息接入）',
+                    desc: [
+                        'NapCat 是 QQ 机器人协议端，本程序通过 WebSocket 与它通信、收发 QQ 消息。',
+                        '1. 打开 NapCat 官网，下载对应系统的发行版（Windows 建议免安装版）；',
+                        '2. 解压并启动 NapCat，用手机 QQ 扫码登录机器人账号；',
+                        '3. 打开 NapCat 的「网络配置」面板，新建一个 <b>WebSocket 服务器</b>（默认端口 3001）；',
+                        '4. 确认消息上报已开启（正向 WS），记下 ws://127.0.0.1:3001 这个地址，下一步要用。',
+                    ],
+                    links: [
+                        { label: 'NapCat 官网', url: 'https://napneko.github.io/' },
+                        { label: 'NapCatQQ 发行版下载（GitHub）', url: 'https://github.com/NapNeko/NapCatQQ/releases' }
+                    ],
+                    state: 'ws',
+                    tab: 'config'
+                },
+                {
+                    title: '填写 QQ 连接信息',
+                    desc: [
+                        '直接在下方表单填写，点「保存配置」即写入，无需翻配置文件。',
+                        '<b>ws_url</b>：NapCat 的 WebSocket 地址；<b>bot_qq</b>：机器人 QQ 号；',
+                        '<b>master_qq</b>：管理员（群主）QQ 号；<b>web_password</b>：面板访问密码（可留空）；',
+                        '<b>friend_api_token</b>：仅当 NapCat 好友接口要求鉴权时填写，一般留空。',
+                    ],
+                    state: 'qq',
+                    tab: 'config'
+                },
+                {
+                    title: '获取并填写 AI API Key',
+                    desc: [
+                        '机器人的对话、人设等功能依赖 AI 接口。推荐 OpenRouter（聚合多家模型）：',
+                        '1. 打开 OpenRouter 官网注册账号；2. 右上角进入 API Keys，点击 Create Key；3. 复制以 sk-or- 开头的密钥。',
+                        '也可使用 DeepSeek、Kimi、智谱等国内服务，把 <b>Key、接口地址、模型名</b>填到下方表单。',
+                        '保存后建议到「API管理」页添加多个接口并点「测试连接」，做容灾切换。',
+                    ],
+                    links: [
+                        { label: 'OpenRouter 官网', url: 'https://openrouter.ai/' },
+                        { label: 'DeepSeek 开放平台', url: 'https://platform.deepseek.com/' },
+                        { label: 'Kimi 开放平台', url: 'https://platform.moonshot.cn/' },
+                        { label: '智谱开放平台', url: 'https://open.bigmodel.cn/' }
+                    ],
+                    state: 'api',
+                    tab: 'api'
+                },
+                {
+                    title: '启动与验证',
+                    desc: [
+                        '推荐用 <b>群星启动器.exe</b> 启动：自动检测环境、自动安装依赖、异常自动重启；也可在控制台执行 python main.py。',
+                        '确认 ws_url、bot_qq、master_qq、AI 接口均已填写后，<b>重启机器人</b>使配置生效。',
+                        '在 QQ 里向机器人发送「菜单」测试基础功能，发送「签到」测试数据写入。',
+                        '面板「仪表盘」的星核状态变绿表示 AI 接口正常；若为红色，检查 API Key 是否正确、额度是否用完。',
+                        '常见问题：机器人不回复 → 检查 NapCat 是否在线、ws_url 端口是否一致；AI 报错 → 看「API管理」页测试连接。',
+                    ],
+                    state: 'done',
+                    tab: null
+                }
+            ];
+        }
+    },
+    mounted() {
+        this.probeAuth();
+        this.loadStatus();
+        this.loadFeatures();
+        this.loadConfig();
+        this.loadPersonalities();
+        this.loadApiProviders();
+        this.loadMenuTexts();
+        this.loadYandereWhitelist();
+        setInterval(() => this.loadStatus(), 5000);
+        this.loadNapcat();
+        setInterval(() => this.loadNapcat(), 15000);
+        socket.on('log', (data) => {
+            this.logs.push({ id: this.logId++, text: data.data });
+            if (this.logs.length > 500) this.logs.shift();
+            this.$nextTick(() => { if (this.$refs.logContainer) this.$refs.logContainer.scrollTop = this.$refs.logContainer.scrollHeight; });
+        });
+        this.$watch('authed', (v) => { if (v) this.maybeOpenGuide(); });
+        this.maybeOpenGuide();
+        window.addEventListener('keydown', (e) => {
+            if (!this.showGuide) return;
+            if (e.key === 'ArrowRight' || e.key === 'Enter') this.nextGuide();
+            else if (e.key === 'ArrowLeft') this.prevGuide();
+        });
+    },
+    watch: {
+        guideStep() { this.syncGuideForm(); }
+    },
+    methods: {
+        syncGuideForm() {
+            const s = this.guideSteps[this.guideStep];
+            this.guideSaveMsg = '';
+            if (s.state === 'qq') {
+                this.guideForm.ws_url = this.config.ws_url || '';
+                this.guideForm.bot_qq = this.status.bot_qq || '';
+                this.guideForm.master_qq = this.status.master_qq || '';
+                this.guideForm.web_password = this.config.web_password || '';
+                this.guideForm.friend_api_token = this.config.friend_api_token || '';
+                this.guideForm.bot_display_name = this.config.bot_display_name || '';
+                this.guideForm.currency_name = this.config.currency_name || '';
+            } else if (s.state === 'api') {
+                this.guideForm.api_key = this.config.api_key || '';
+                this.guideForm.base_url = this.config.base_url || '';
+                this.guideForm.model_name = this.config.model_name || '';
+            }
+        },
+        saveGuideStep() {
+            const s = this.guideSteps[this.guideStep];
+            let keys;
+            if (s.state === 'qq') {
+                keys = ['ws_url', 'bot_qq', 'master_qq', 'web_password', 'friend_api_token', 'bot_display_name', 'currency_name'];
+            } else {
+                keys = ['api_key', 'base_url', 'model_name'];
+            }
+            const tasks = keys.map(k => axios.post('/api/config', { key: k, value: this.guideForm[k] }));
+            Promise.all(tasks).then(() => {
+                this.guideSaveMsg = '已保存';
+                this.guideSaveOk = true;
+                this.loadConfig();
+                this.loadStatus();
+            }).catch(() => {
+                this.guideSaveMsg = '保存失败，请重试';
+                this.guideSaveOk = false;
+            });
+        },
+        guideState(i) {
+            const s = this.guideSteps[i];
+            if (s.state === 'env') return { cls: '', text: '' };
+            if (s.state === 'ws') return this.config.ws_url ? { cls: 'ok', text: '已配置' } : { cls: 'no', text: '未配置' };
+            if (s.state === 'qq') {
+                const done = !!(this.config.ws_url && this.status.bot_qq && this.status.master_qq);
+                return done ? { cls: 'ok', text: '已配置' } : { cls: 'no', text: '未配置' };
+            }
+            if (s.state === 'api') return this.apiProviders.length ? { cls: 'ok', text: '已配置 ' + this.apiProviders.length + ' 个接口' } : { cls: 'no', text: '未配置' };
+            return { cls: '', text: '' };
+        },
+        guideCur(i) {
+            const s = this.guideSteps[i];
+            if (s.state === 'ws') return this.config.ws_url || '（空）';
+            if (s.state === 'qq') return 'ws_url: ' + (this.config.ws_url || '空') + ' ｜ bot_qq: ' + (this.status.bot_qq || '空') + ' ｜ master_qq: ' + (this.status.master_qq || '空') + ' ｜ web_password: ' + (this.config.web_password ? '已设置' : '空');
+            if (s.state === 'api') return 'base_url: ' + (this.config.base_url || '空') + ' ｜ model_name: ' + (this.config.model_name || '空') + ' ｜ api_key: ' + (this.config.api_key ? '已填写' : '空');
+            return null;
+        },
+        skipStep() { if (this.guideStep < this.guideSteps.length - 1) this.guideStep++; },
+        navCls(t) {
+            return { active: this.currentTab === t, 'guide-glow': this.showGuide && this.guideSteps[this.guideStep].tab === t };
+        },
+        maybeOpenGuide() {
+            if (this.guideAutoKnown && this.authed && this.status.guide_auto !== false && !localStorage.getItem('star_guide_v1') && !this.showGuide) {
+                this.showGuide = true;
+            }
+        },
+        startGuide() { this.guideStep = 0; this.showGuide = true; this.syncGuideForm(); },
+        nextGuide() {
+            const s = this.guideSteps[this.guideStep];
+            if (s.state === 'qq' || s.state === 'api') {
+                let reqs;
+                if (s.state === 'qq') reqs = ['ws_url', 'bot_qq', 'master_qq'];
+                else reqs = ['api_key', 'base_url', 'model_name'];
+                const missing = reqs.filter(k => !String(this.guideForm[k] || '').trim());
+                if (missing.length) {
+                    this.guideSaveMsg = '还有必填项未填写';
+                    this.guideSaveOk = false;
+                    return;
+                }
+            }
+            if (this.guideStep < this.guideSteps.length - 1) this.guideStep++; else this.finishGuide();
+        },
+        prevGuide() { if (this.guideStep > 0) this.guideStep--; },
+        finishGuide() { this.showGuide = false; localStorage.setItem('star_guide_v1', '1'); },
+        formatUptime(sec) { let h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60; return h + 'h ' + m + 'm ' + s + 's'; },
+        probeAuth() { axios.get('/api/status').catch(() => {}); },
+        doLogin() {
+            if (!this.loginPassword) { this.loginError = '请输入密码'; return; }
+            axios.post('/api/auth', { password: this.loginPassword }).then(res => {
+                if (res.data.success) {
+                    localStorage.setItem('star_token', this.loginPassword);
+                    this.authed = true;
+                    this.loginError = '';
+                    this.loadStatus(); this.loadFeatures(); this.loadConfig(); this.loadPersonalities();
+                    this.loadApiProviders(); this.loadMenuTexts(); this.loadYandereWhitelist();
+                }
+            }).catch(err => {
+                this.loginError = (err.response && err.response.data && err.response.data.error) || '密码错误';
+            });
+        },
+        countUp(target, value) {
+            const start = performance.now(), dur = 600, from = 0;
+            function tick(now) {
+                const p = Math.min((now - start) / dur, 1);
+                target.textContent = Math.floor(from + (value - from) * (1 - Math.pow(1 - p, 3)));
+                if (p < 1) requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        },
+        toggleQuality() {
+            const order = ['high', 'balanced', 'fast'];
+            const cur = this.status.ui_quality || 'high';
+            const next = order[(order.indexOf(cur) + 1) % order.length];
+            axios.post('/api/config', { key: 'web_ui_quality', value: next }).then(() => location.reload());
+        },
+        toggleTheme(e) {
+            const next = this.status.theme === 'dark' ? 'light' : 'dark';
+            axios.post('/api/config', { key: 'web_theme', value: next });
+            this.applyTheme(next, e);
+        },
+        applyTheme(theme, e) {
+            // 记录扩散动画圆心（点击按钮位置），无点击则居中
+            const rect = e && e.currentTarget ? e.currentTarget.getBoundingClientRect() : null;
+            const cx = rect ? ((rect.left + rect.width / 2) / window.innerWidth * 100).toFixed(1) : 50;
+            const cy = rect ? ((rect.top + rect.height / 2) / window.innerHeight * 100).toFixed(1) : 50;
+            document.documentElement.style.setProperty('--vt-x', cx + '%');
+            document.documentElement.style.setProperty('--vt-y', cy + '%');
+            const doApply = () => {
+                document.body.classList.remove('theme-light', 'theme-dark');
+                document.body.classList.add('theme-' + theme);
+                this.status.theme = theme;
+                localStorage.setItem('star_theme', theme);
+                Chart.defaults.color = chartTheme().txt;
+                Chart.defaults.borderColor = chartTheme().grid;
+                if (typeof window.__star !== 'undefined' && window.__star.setDark) window.__star.setDark(theme === 'dark');
+                if (this.currentTab === 'stats') this.loadStats();
+            };
+            if (document.startViewTransition) {
+                document.startViewTransition(doApply);
+            } else {
+                // 无 View Transition API：CSS 过渡兜底
+                document.body.classList.add('theme-anim');
+                doApply();
+                setTimeout(() => document.body.classList.remove('theme-anim'), 550);
+            }
+        },
+        loadStatus() {
+            axios.get('/api/status').then(res => {
+                this.status = res.data;
+                this.guideAutoKnown = true;
+                this.maybeOpenGuide();
+                if (res.data.system_name) {
+                    this.systemName = res.data.system_name;
+                    document.title = res.data.system_name + ' · 星空控制台';
+                }
+                if (res.data.theme && !document.body.classList.contains('theme-' + res.data.theme)) {
+                    this.applyTheme(res.data.theme, null);
+                }
+            });
+        },
+        loadUsers(page) {
+            this.currentPage = page;
+            axios.get('/api/users', { params: { page, search: this.searchUser } }).then(res => { this.users = res.data.users; this.totalPages = Math.ceil(res.data.total / res.data.per_page); });
+        },
+        showUserDetail(qq) { alert('功能开发中'); },
+        loadFeatures() { axios.get('/api/features').then(res => this.features = res.data); },
+        toggleFeature(name) { axios.post('/api/toggle', { feature: name, enabled: this.features[name] }).then(() => this.loadFeatures()); },
+        loadConfig() { axios.get('/api/config').then(res => this.config = res.data); },
+        saveConfig(key, val) {
+            axios.post('/api/config', { key, value: val }).then(() => {
+                if (key === 'web_password' && val) localStorage.setItem('star_token', val);
+                this.loadConfig();
+            });
+        },
+        loadPersonalities() { axios.get('/api/personalities').then(res => { this.personalities = res.data; this.personasLoaded = true; }); },
+        openConfirm(title, text, okText, danger, onOk) {
+            this.confirmDlg = { show: true, title, text, okText, danger: !!danger, onOk };
+        },
+        confirmOk() {
+            const fn = this.confirmDlg.onOk;
+            this.confirmDlg.show = false;
+            if (typeof fn === 'function') fn();
+        },
+        confirmCancel() { this.confirmDlg.show = false; },
+        showToast(msg, ms) {
+            this.toastMsg = msg;
+            clearTimeout(this._toastTimer);
+            this._toastTimer = setTimeout(() => { this.toastMsg = ''; }, ms || 6000);
+        },
+        copyText(t) {
+            const done = () => this.showToast('NapCat 登录令牌已复制到剪贴板');
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(t).then(done).catch(() => this._copyFallback(t, done));
+            } else {
+                this._copyFallback(t, done);
+            }
+        },
+        _copyFallback(t, done) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = t;
+                ta.style.cssText = 'position:fixed;opacity:0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                done();
+            } catch (e) { this.showToast('复制失败，请手动复制令牌'); }
+        },
+        loadNapcat() {
+            axios.get('/api/napcat/status').then(res => { this.napcat = res.data; });
+        },
+        _openNapcatPage() {
+            const n = this.napcat;
+            if (!n.ready || !n.url) { this.showToast('NapCat WebUI 尚未就绪，请稍候再试'); return; }
+            window.open(n.url, '_blank');
+        },
+        startNapcat() {
+            if (this.napcatBusy) return;
+            this.napcatBusy = true;
+            axios.post('/api/napcat/start').then(res => {
+                if (!res.data.success) {
+                    this.napcatBusy = false;
+                    this.showToast(res.data.error || '启动失败');
+                    return;
+                }
+                if (res.data.already) {
+                    this.showToast('NapCat 已在运行');
+                    this.waitNapcatReady(() => { this.napcatBusy = false; this._openNapcatPage(); });
+                    return;
+                }
+                this.showToast('NapCat 启动中，等待登录完成...');
+                this.waitNapcatReady(() => {
+                    this.napcatBusy = false;
+                    if (this.napcat.ready) {
+                        if (this.napcat.token) this.copyText(this.napcat.token);
+                        this._openNapcatPage();
+                    } else {
+                        this.showToast('NapCat 未在预期时间内就绪，请查看启动器控制台或检查登录');
+                    }
+                });
+            }).catch(err => {
+                this.napcatBusy = false;
+                this.showToast('启动请求失败：' + (err.response && err.response.data ? (err.response.data.error || '未知错误') : err.message));
+            });
+        },
+        waitNapcatReady(onDone, seconds) {
+            const total = seconds || 90;
+            let waited = 0;
+            const poll = () => {
+                axios.get('/api/napcat/status').then(res => {
+                    this.napcat = res.data;
+                    if (res.data.ready) { onDone(); return; }
+                    waited += 3;
+                    if (waited >= total) { onDone(); return; }
+                    this.napcatWaitTimer = setTimeout(poll, 3000);
+                }).catch(() => {
+                    waited += 3;
+                    if (waited >= total) { onDone(); return; }
+                    this.napcatWaitTimer = setTimeout(poll, 3000);
+                });
+            };
+            poll();
+        },
+        openNapcat() {
+            axios.get('/api/napcat/status').then(res => {
+                this.napcat = res.data;
+                if (res.data.ready) {
+                    if (res.data.token) this.copyText(res.data.token);
+                    this._openNapcatPage();
+                } else if (res.data.running) {
+                    this.showToast('NapCat 进程运行中，WebUI 尚未就绪，正在等待...');
+                    this.waitNapcatReady(() => {
+                        if (this.napcat.ready) {
+                            if (this.napcat.token) this.copyText(this.napcat.token);
+                            this._openNapcatPage();
+                        } else {
+                            this.showToast('WebUI 等待超时，请检查 NapCat 登录状态');
+                        }
+                    });
+                } else {
+                    this.openConfirm('启动 NapCat？', 'NapCat 尚未启动。是否立即启动并登录机器人？', '启动', false, () => this.startNapcat());
+                }
+            }).catch(() => this.showToast('获取 NapCat 状态失败'));
+        },
+        restartBot() {
+            this.openConfirm('重启机器人', '确定要重启机器人吗？\n重启期间服务会中断约 10~20 秒，重启后不弹出窗口，本页面将自动恢复。', '重启', true, () => {
+                this.restarting = true;
+                axios.post('/api/restart').catch(() => {});
+                const tryReload = () => {
+                    axios.get('/api/status', { timeout: 3000 })
+                        .then(() => location.reload())
+                        .catch(() => setTimeout(tryReload, 1500));
+                };
+                setTimeout(tryReload, 3000);
+            });
+        },
+        stopBot() {
+            this.openConfirm('停止机器人', '确定要停止机器人吗？\n停止后需重新启动才能继续使用。', '停止', true, () => {
+                this.stopping = true;
+                axios.post('/api/stop').catch(() => { this.stopping = false; });
+                const tryStatus = () => {
+                    axios.get('/api/status', { timeout: 2000 })
+                        .then(() => setTimeout(tryStatus, 2000))
+                        .catch(() => { this.stopping = false; this.stopped = true; });
+                };
+                setTimeout(tryStatus, 2000);
+            });
+        },
+        savePersonalities() {
+            if (!this.personasLoaded) { alert('人设数据尚未加载完成，已取消保存'); return; }
+            if (!this.personalities || Object.keys(this.personalities).length === 0) { alert('人设列表为空，已取消保存（防止误清空）'); return; }
+            axios.post('/api/personalities', { personalities: this.personalities }).then(() => this.loadPersonalities());
+        },
+        addPersona() { if (!this.newPersonaName || !this.newPersonaPrompt) { alert('请填写名称和提示词'); return; } axios.post('/api/add_persona', { name: this.newPersonaName, prompt: this.newPersonaPrompt, type: this.newPersonaType }).then(() => { this.loadPersonalities(); this.newPersonaName = ''; this.newPersonaPrompt = ''; this.newPersonaType = 'normal'; }); },
+        loadStats() {
+            axios.get('/api/stats').then(res => {
+                this.stats = res.data;
+                const render = (attempt) => {
+                    this.$nextTick(() => {
+                        const mk = (id, destroyKey) => {
+                            const ctx = document.getElementById(id);
+                            if (!ctx) return null;
+                            if (this[destroyKey]) this[destroyKey].destroy();
+                            return ctx;
+                        };
+                        const ctx1 = mk('signinChart', '_chart1');
+                        const ctx2 = mk('stardustChart', '_chart2');
+                        const ctx3 = mk('tierChart', '_chart3');
+                        // tab 过渡期间画布可能还没挂载，重试兜底
+                        if ((!ctx1 || !ctx2 || !ctx3) && attempt < 10) {
+                            setTimeout(() => render(attempt + 1), 120);
+                            return;
+                        }
+                        if (ctx1) {
+                            this._chart1 = new Chart(ctx1, {
+                                type: 'line',
+                                data: { labels: res.data.signin_trend.map(d => d.date), datasets: [{ label: '签到人数', data: res.data.signin_trend.map(d => d.count), borderColor: '#8b7bff', backgroundColor: 'rgba(139,123,255,.15)', fill: true, tension: .4, pointRadius: 3 }] },
+                                options: {
+                                    maintainAspectRatio: false,
+                                    plugins: { legend: { labels: { color: chartTheme().txt } } },
+                                    scales: { x: { ticks: { color: chartTheme().txt }, grid: { color: chartTheme().grid } }, y: { ticks: { color: chartTheme().txt }, grid: { color: chartTheme().grid } } }
+                                }
+                            });
+                        }
+                        if (ctx2) {
+                            this._chart2 = new Chart(ctx2, {
+                                type: 'pie',
+                                data: { labels: res.data.range_labels, datasets: [{ data: res.data.stardust_distribution, backgroundColor: ['#f44336', '#ff9800', '#ffeb3b', '#4caf50', '#8b7bff', '#e91e63'], borderColor: chartTheme().pieBorder }] },
+                                options: {
+                                    responsive: true, maintainAspectRatio: false,
+                                    layout: { padding: 6 },
+                                    plugins: { legend: { position: 'bottom', labels: { color: chartTheme().txt, boxWidth: 12, padding: 8 } } }
+                                }
+                            });
+                        }
+                        if (ctx3) {
+                            this._chart3 = new Chart(ctx3, {
+                                type: 'bar',
+                                data: { labels: ['SSR', 'SR', 'R'], datasets: [{ label: '卡牌数量', data: ['SSR','SR','R'].map(t => res.data.tier_distribution[t] || 0), backgroundColor: ['#f44336', '#ff9800', '#9e9e9e'] }] },
+                                options: {
+                                    responsive: true, maintainAspectRatio: false,
+                                    plugins: { legend: { labels: { color: chartTheme().txt } } },
+                                    scales: { x: { ticks: { color: chartTheme().txt }, grid: { color: chartTheme().grid } }, y: { ticks: { color: chartTheme().txt }, grid: { color: chartTheme().grid } } }
+                                }
+                            });
+                        }
+                    });
+                };
+                render(0);
+            }).catch(err => console.error('统计加载失败', err));
+        },
+        showUserDetail(qq) {
+            axios.get('/api/user/' + qq).then(res => {
+                this.userDetail = res.data;
+                this.showUserModal = true;
+            }).catch(err => alert('获取用户详情失败'));
+        },
+        saveUserStardust() {
+            const qq = this.userDetail.qq;
+            axios.post('/api/user/' + qq + '/stardust', { stardust: this.userDetail.stardust }).then(res => {
+                this.userDetail.stardust = res.data.stardust;
+                this.loadUsers(this.currentPage);
+                alert('星尘已更新');
+            }).catch(err => alert('保存失败'));
+        },
+        deleteUser(qq) {
+            this.openConfirm('删除用户', '确定删除该用户的全部数据吗？\n（星尘/卡牌/星球/记忆）此操作不可恢复！', '删除', true, () => {
+                axios.post('/api/user/' + qq + '/delete').then(() => {
+                    this.showUserModal = false;
+                    this.loadUsers(1);
+                    alert('已删除');
+                }).catch(err => alert('删除失败'));
+            });
+        },
+        loadApiProviders() { axios.get('/api/providers').then(res => this.apiProviders = res.data); },
+        updatePriority(api) { axios.post('/api/update_priority', { id: api.id, priority: api.priority }).then(() => this.loadApiProviders()); },
+        toggleApi(api) { axios.post('/api/toggle_api', { id: api.id, enabled: !api.enabled }).then(() => this.loadApiProviders()); },
+        testApi(api) { axios.post('/api/test_api', { id: api.id }).then(res => alert(res.data.message)); },
+        deleteApi(api) { this.openConfirm('删除API接口', '确定删除「' + (api.name || '') + '」吗？', '删除', true, () => axios.post('/api/delete_api', { id: api.id }).then(() => this.loadApiProviders())); },
+        editApi(api) {
+            axios.get('/api/provider/' + api.id).then(res => {
+                this.editApiData = res.data;
+                this.showEditModal = true;
+            }).catch(err => alert('获取详情失败'));
+        },
+        saveEditApi() {
+            axios.post('/api/update_provider', this.editApiData).then(() => { this.showEditModal = false; this.loadApiProviders(); }).catch(err => alert('保存失败'));
+        },
+        showAddApiModal() { this.newApi = { name: '', api_key: '', base_url: '', model_name: '', priority: 100, max_requests_per_day: 0, is_public_welfare: false, provider_name: '', admin_url: '' }; this.showAddModal = true; },
+        addApi() { axios.post('/api/add_provider', this.newApi).then(() => { this.showAddModal = false; this.loadApiProviders(); }); },
+        loadMenuTexts() { axios.get('/api/menu_texts').then(res => this.menuTexts = res.data); },
+        openMenuEditor(featureName) {
+            this.editingFeatureName = featureName;
+            const map = { '签到': 'signin', '抽卡': 'draw', '塔罗': 'tarot', 'AI聊天': 'aichat', '天气': 'weather', '笑话': 'joke', '疯狂星期四': 'kfc', '每日emo': 'emo', '随机美图': 'random_img', '每日老婆': 'random_waifu', 'AI人设': 'persona', '问题反馈': 'feedback', '赠送碎片': 'gift', '背包查询': 'query', '星球养成': 'planet', '星空名片': 'profile' };
+            this.editingFeatureKey = map[featureName];
+            if (this.editingFeatureKey) {
+                this.editingMenuText = this.menuTexts[this.editingFeatureKey] || '';
+                this.showMenuEditor = true;
+            } else { alert('无法识别功能'); }
+        },
+        saveMenuText() {
+            axios.post('/api/update_menu_text', { feature: this.editingFeatureKey, text: this.editingMenuText }).then(() => {
+                this.showMenuEditor = false; this.loadMenuTexts(); alert('菜单文本已更新');
+            }).catch(err => alert('保存失败'));
+        },
+        loadYandereWhitelist() {
+            axios.get('/api/yandere_whitelist').then(res => this.yandereWhitelist = res.data).catch(err => console.error);
+        },
+        addWhitelistQQ() {
+            if (!this.newWhitelistQQ) return;
+            axios.post('/api/yandere_whitelist/add', { qq: this.newWhitelistQQ }).then(res => {
+                if (res.data.success) { this.loadYandereWhitelist(); this.newWhitelistQQ = ''; }
+                else alert(res.data.error);
+            }).catch(err => alert('添加失败'));
+        },
+        removeWhitelistQQ(qq) {
+            this.openConfirm('移出白名单', '确定将 ' + qq + ' 移出白名单吗？', '移出', true, () => {
+                axios.post('/api/yandere_whitelist/remove', { qq: qq }).then(res => {
+                    if (res.data.success) this.loadYandereWhitelist();
+                    else alert(res.data.error);
+                }).catch(err => alert('移除失败'));
+            });
+        }
+    },
+    watch: {
+        currentTab(val) { if (val === 'users') this.loadUsers(1); if (val === 'stats') this.loadStats(); }
+    }
+}).$mount();
+vm = document.querySelector('#app').__vue__;
+</script>
+</body>
+</html>

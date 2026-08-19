@@ -655,22 +655,54 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
                         </div></div></div>
                     </div>
                     <div class="row mt-3">
-                        <div class="col-md-12"><div class="card glass"><div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div>
-                                <div class="card-title mb-1">NapCat 管理</div>
-                                <small class="text-muted">
-                                    <span class="dot" :class="napcat.running ? 'ok' : 'bad'"></span>
-                                    进程：{{ napcat.running ? '运行中' : '未运行' }} ｜
-                                    <span class="dot" :class="napcat.ready ? 'ok' : 'bad'"></span>
-                                    WebUI：{{ napcat.ready ? '已就绪' : '未就绪' }}
-                                    <template v-if="napcat.port">｜ 端口 {{ napcat.port }}</template>
-                                    <template v-if="napcat.exe">｜ 位置：{{ napcat.exe }}</template>
-                                    <template v-else>｜ 未检测到 NapCat 安装位置</template>
-                                </small>
+                        <div class="col-md-12"><div class="card glass"><div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <div>
+                                    <div class="card-title mb-1">NapCat 管理</div>
+                                    <small class="text-muted">
+                                        <span class="dot" :class="napcat.running ? 'ok' : 'bad'"></span>
+                                        进程：{{ napcat.running ? '运行中' : '未运行' }} ｜
+                                        <span class="dot" :class="napcat.ready ? 'ok' : 'bad'"></span>
+                                        WebUI：{{ napcat.ready ? '已就绪' : '未就绪' }}
+                                        <template v-if="napcat.port">｜ 端口 {{ napcat.port }}</template>
+                                        <template v-if="napcat.exe">｜ 位置：{{ napcat.exe }}</template>
+                                        <template v-else-if="!napcatDeploy.busy">｜ 未检测到 NapCat</template>
+                                    </small>
+                                </div>
+                                <div class="d-flex gap-2" v-if="!napcat.exe">
+                                    <button class="btn btn-success" :disabled="napcatDeploy.busy" @click="napcatDeployAsk('auto')">{{ napcatDeploy.busy ? '部署中...' : '一键自动部署' }}</button>
+                                    <button class="btn btn-outline-info" :disabled="napcatDeploy.busy" @click="napcatDeployAsk('manual')">手动部署</button>
+                                </div>
+                                <div class="d-flex gap-2" v-else>
+                                    <button class="btn btn-outline-info" :disabled="napcatBusy" @click="openNapcat">打开 NapCat 页面</button>
+                                    <button class="btn btn-info" :disabled="napcatBusy" @click="startNapcat">{{ napcatBusy ? '启动中...' : (napcat.running ? '已启动' : '启动 NapCat') }}</button>
+                                </div>
                             </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-outline-info" :disabled="napcatBusy" @click="openNapcat">打开 NapCat 页面</button>
-                                <button class="btn btn-info" :disabled="napcatBusy" @click="startNapcat">{{ napcatBusy ? '启动中...' : (napcat.running ? '已启动' : '启动 NapCat') }}</button>
+                            <!-- 自动部署：令牌输入 -->
+                            <div v-if="napcatDeployAskToken" class="mt-3 p-2 border rounded">
+                                <small class="text-muted d-block mb-2">设置 NapCat WebUI 登录令牌（将写入 webui.json）：</small>
+                                <div class="d-flex gap-2">
+                                    <input type="text" class="form-control" v-model="deployToken" placeholder="留空则使用默认（napcat）" @keyup.enter="napcatDeployStart">
+                                    <button class="btn btn-success" :disabled="napcatDeploy.busy" @click="napcatDeployStart">开始自动部署</button>
+                                </div>
+                                <small class="text-muted d-block mt-2">部署过程：查询最新版 → 下载（约 110MB，直连失败自动切镜像源）→ 解压 → 写入配置 → 完成</small>
+                            </div>
+                            <!-- 部署进度条 -->
+                            <div v-if="napcatDeploy.busy || napcatDeploy.progress > 0" class="mt-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <small class="text-muted">{{ napcatDeploy.msg }}</small>
+                                    <small class="text-muted" v-if="napcatDeploy.progress > 0 && napcatDeploy.progress < 100">{{ napcatDeploy.progress }}%<template v-if="napcatDeploy.speed > 0">（{{ napcatDeploy.speed }} MB/s）</template></small>
+                                </div>
+                                <div class="progress" style="height:10px"><div class="progress-bar" :class="napcatDeploy.progress < 0 ? 'bg-danger' : ''" :style="{ width: Math.max(napcatDeploy.progress, 0) + '%' }"></div></div>
+                                <div v-if="napcatDeploy.progress < 0" class="text-danger small mt-1">{{ napcatDeploy.msg }}</div>
+                            </div>
+                            <!-- 部署完成提示 -->
+                            <div v-if="napcatDeploy.result" class="mt-3 p-2 border rounded">
+                                <small class="text-muted d-block mb-1">NapCat 部署完成：</small>
+                                <small class="d-block">ws_url 已自动写入配置：<code>{{ napcatDeploy.result.ws_url }}</code></small>
+                                <small class="d-block">WebUI：<a :href="napcatDeploy.result.webui_url" target="_blank" rel="noopener">{{ napcatDeploy.result.webui_url }}</a></small>
+                                <small class="d-block mt-1 text-muted">接下来点击「启动 NapCat」并用手机 QQ 扫码登录机器人账号</small>
+                                <button class="btn btn-primary btn-sm mt-2" @click="loadNapcat; napcatDeploy.result=null">知道了，开始使用</button>
                             </div>
                         </div></div></div>
                     </div>
@@ -1293,6 +1325,9 @@ new Vue({
         napcat: { running: false, ready: false, port: null, token: '', url: '' },
         napcatBusy: false,
         napcatWaitTimer: null,
+        napcatDeploy: { busy: false, progress: 0, speed: 0, msg: '', result: null, last_error: '' },
+        napcatDeployAskToken: false,
+        deployToken: '',
         toastMsg: '',
         bili: { enabled: false, alert_group: '', check_interval: 120, watch: [] },
         biliSearchKw: '',
@@ -1321,12 +1356,15 @@ new Vue({
             return [
                 {
                     title: '搭建 NapCat（QQ 消息接入）',
-                    desc: [
+                    desc: this.napcat.exe ? [
                         'NapCat 是 QQ 机器人协议端，本程序通过 WebSocket 与它通信、收发 QQ 消息。',
-                        '1. 打开 NapCat 官网，下载对应系统的发行版（Windows 建议免安装版）；',
-                        '2. 解压并启动 NapCat，用手机 QQ 扫码登录机器人账号；',
-                        '3. 打开 NapCat 的「网络配置」面板，新建一个 <b>WebSocket 服务器</b>（默认端口 3001）；',
-                        '4. 确认消息上报已开启（正向 WS），记下 ws://127.0.0.1:3001 这个地址，下一步要用。',
+                        '已检测到 NapCat：' + this.napcat.exe,
+                        '1. 点下方「启动 NapCat」并用手机 QQ 扫码登录机器人账号；',
+                        '2. 确认 WebSocket 服务器已开启（默认端口 3001），记下 ws://127.0.0.1:3001 这个地址，下一步要用。',
+                    ] : [
+                        'NapCat 是 QQ 机器人协议端，本程序通过 WebSocket 与它通信、收发 QQ 消息。',
+                        '<b>未检测到 NapCat 安装。</b>推荐到「仪表盘 → NapCat 管理」点击 <b>一键自动部署</b>（自动下载解压并写配置，也可手动部署）。',
+                        '部署完成后：启动 NapCat 并用手机 QQ 扫码登录机器人账号，下一步填写连接信息即可。',
                     ],
                     links: [
                         { label: 'NapCat 官网', url: 'https://napneko.github.io/' },
@@ -1395,6 +1433,21 @@ new Vue({
             this.logs.push({ id: this.logId++, text: data.data });
             if (this.logs.length > 500) this.logs.shift();
             this.$nextTick(() => { if (this.$refs.logContainer) this.$refs.logContainer.scrollTop = this.$refs.logContainer.scrollHeight; });
+        });
+        socket.on('napcat_deploy_progress', (data) => {
+            this.napcatDeploy.progress = data.percent;
+            this.napcatDeploy.speed = data.speed || 0;
+            this.napcatDeploy.msg = data.msg || '';
+            if (data.percent === 100) {
+                this.napcatDeploy.busy = false;
+                this.showToast('NapCat 部署完成！');
+                this.loadNapcat();
+                axios.get('/api/napcat/deploy/status').then(res => {
+                    if (res.data.result) this.napcatDeploy.result = res.data.result;
+                }).catch(() => {});
+            } else if (data.percent < 0) {
+                this.napcatDeploy.busy = false;
+            }
         });
         this.$watch('authed', (v) => { if (v) this.maybeOpenGuide(); });
         this.maybeOpenGuide();
@@ -1621,6 +1674,28 @@ new Vue({
             const n = this.napcat;
             if (!n.ready || !n.url) { this.showToast('NapCat WebUI 尚未就绪，请稍候再试'); return; }
             window.open(n.url, '_blank');
+        },
+        napcatDeployAsk(mode) {
+            if (mode === 'manual') {
+                this.openConfirm('手动部署 NapCat', '请前往 NapCat 官网或 GitHub Releases 下载免安装版（NapCat.Shell.Windows.Node.zip），解压到 D:\\napcat，然后重启机器人即可自动识别。\n\n官网：https://napneko.github.io/', '知道了', false, () => {});
+                return;
+            }
+            this.deployToken = '';
+            this.napcatDeployAskToken = true;
+        },
+        napcatDeployStart() {
+            if (this.napcatDeploy.busy) return;
+            this.napcatDeploy = { busy: true, progress: 0, speed: 0, msg: '准备部署...', result: null, last_error: '' };
+            this.napcatDeployAskToken = false;
+            axios.post('/api/napcat/deploy/start', { token: this.deployToken }).then(res => {
+                if (!res.data.success) {
+                    this.napcatDeploy.busy = false;
+                    this.showToast(res.data.error || '部署启动失败');
+                }
+            }).catch(err => {
+                this.napcatDeploy.busy = false;
+                this.showToast(err.response && err.response.data ? err.response.data.error : '部署启动失败');
+            });
         },
         startNapcat() {
             if (this.napcatBusy) return;

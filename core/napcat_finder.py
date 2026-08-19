@@ -6,7 +6,10 @@ import os
 
 def scan_napcat_exe():
     """扫描本机 NapCatWinBootMain.exe 位置，返回第一个命中的完整路径；找不到返回 None
-    优先完整运行目录（NapCat*.Shell，同目录带 QQ.exe），bootmain 占位目录（缺 QQ.exe）降级"""
+    兼容目录结构：
+      - v2 完整运行目录：NapCat*.Shell/ 下 NapCatWinBootMain.exe 与 QQ.exe 同目录
+      - v4 目录：<root>/napcat/NapCatWinBootMain.exe（同层 napcat/config）
+      - 占位目录 bootmain/（缺 QQ.exe，降级）"""
     roots = []
     for drv in ("D:", "C:", "E:"):
         root = drv + "\\"
@@ -43,6 +46,13 @@ def scan_napcat_exe():
                 full_hits.append(bm)
             else:
                 bare_hits.append(bm)
+        # v4 结构：<root>/napcat/NapCatWinBootMain.exe
+        v4 = os.path.join(r, "napcat", "NapCatWinBootMain.exe")
+        if os.path.isfile(v4):
+            if os.path.isdir(os.path.join(r, "napcat", "config")):
+                full_hits.append(v4)
+            else:
+                bare_hits.append(v4)
     return (full_hits or bare_hits or [None])[0]
 
 
@@ -50,5 +60,7 @@ def find_exe(preferred=""):
     """优先用已配置路径（须为完整运行目录）；无效则自动扫描补齐"""
     if preferred and os.path.isfile(preferred):
         if os.path.isfile(os.path.join(os.path.dirname(preferred), "QQ.exe")):
+            return preferred
+        if os.path.isdir(os.path.join(os.path.dirname(preferred), "config")):
             return preferred
     return scan_napcat_exe()

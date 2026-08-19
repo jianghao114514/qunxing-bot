@@ -783,13 +783,21 @@ def _find_napcat_webui_json():
     if exe:
         base = os.path.dirname(os.path.dirname(exe))  # bootmain/.. -> napcat 根
         candidates.append(os.path.join(base, "NapCat*Shell"))
+        candidates.append(os.path.join(base, "napcat", "config", "webui.json"))
+        candidates.append(os.path.join(base, "config", "webui.json"))
         candidates.append(base)
     candidates.append("D:\\napcat\\NapCat*Shell")
+    candidates.append("D:\\napcat\\napcat\\config\\webui.json")
+    candidates.append("D:\\napcat\\config\\webui.json")
     candidates.append(os.path.expanduser("~\\napcat\\NapCat*Shell"))
+    candidates.append(os.path.expanduser("~\\napcat\\napcat\\config\\webui.json"))
     for c in candidates:
-        for p in sorted(glob.glob(os.path.join(c, "versions", "*", "resources", "app", "napcat", "config", "webui.json")), reverse=True):
-            if os.path.exists(p):
-                return p
+        if c and "*" in c:
+            for p in sorted(glob.glob(c), reverse=True):
+                if os.path.isfile(p):
+                    return p
+        elif c and os.path.isfile(c):
+            return c
     return None
 
 
@@ -959,6 +967,96 @@ def api_bilibili_config():
     from core.config import save_config
     save_config()
     return jsonify({'success': True})
+
+
+# ============ NapCat 自动部署 ============
+
+_deploy_state = {"busy": False, "last_error": "", "result": None}
+
+
+def _deploy_progress(percent, speed, msg):
+    socketio.emit('napcat_deploy_progress', {'percent': round(percent, 1), 'speed': round(speed, 1), 'msg': msg})
+
+
+def _do_deploy(ws_port, webui_port, token, bot_qq, install_dir):
+    """执行部署：查询版本 → 下载 → 解压 → 写配置 → 回写 config。全程通过 socket 推送进度"""
+    from core import napcat_deploy as nd
+    try:
+        _deploy_progress(0, 0, "正在查询 NapCat 最新版本...")
+        release = nd.get_latest_release()
+        if not release:
+            raise RuntimeError("查询 NapCat 最新版本失败（网络或 GitHub 不可达），请稍后重试")
+        asset = nd.pick_shell_asset(release)
+        if not asset:
+            raise RuntimeError("未找到可用的 NapCat 发行包")
+        _deploy_progress(1, 0, "最新版本：{}（{:.1f} MB）".format(release["tag"], asset["size"] / 1048576))
+        os.makedirs(install_dir, exist_ok=True)
+
+        zip_path = os.path.join(install_dir, asset["name"])
+        urls = nd._download_url_mirrors(asset["url"])
+        _deploy_progress(2, 0, "开始下载（直连失败将自动切换镜像源）...")
+        used, _ = nd.download_with_progress(urls, zip_path, progress_cb=_deploy_progress)
+        _deploy_progress(50, 0, "下载完成（{}），正在解压...".format(used.split("/")[2]))
+
+        nd.extract_zip(zip_path, install_dir, progress_cb=lambda p, m: _deploy_progress(50 + p * 0.4, 0, m))
+        try:
+            os.remove(zip_path)
+        except Exception:
+            pass
+        bootmain = nd.find_bootmain(install_dir)
+        if not bootmain:
+            raise RuntimeError("解压完成但未找到 NapCatWinBootMain.exe，安装目录可能不完整")
+
+        _deploy_progress(92, 0, "正在写入配置（WebSocket 端口 / WebUI 令牌）...")
+        info = nd.write_napcat_config(install_dir, ws_port, webui_port, token, bot_qq)
+
+        CONFIG["napcat_exe"] = bootmain
+        CONFIG["napcat_qq"] = bot_qq
+        CONFIG["ws_url"] = info["ws_url"]
+        from core.config import save_config
+        save_config()
+
+        _deploy_state["result"] = info
+        _deploy_progress(100, 0, "部署完成！")
+    except Exception as e:
+        _deploy_state["last_error"] = str(e)
+        socketio.emit('napcat_deploy_progress', {'percent': -1, 'msg': "部署失败：" + str(e)})
+
+
+@app.route('/api/napcat/deploy/status')
+def api_napcat_deploy_status():
+    from core import napcat_deploy as nd
+    from core.napcat_finder import scan_napcat_exe
+    return jsonify({
+        'installed': bool(scan_napcat_exe()),
+        'busy': _deploy_state["busy"],
+        'last_error': _deploy_state["last_error"],
+        'result': _deploy_state["result"],
+        'latest': nd.get_latest_release(),
+    })
+
+
+@app.route('/api/napcat/deploy/start', methods=['POST'])
+def api_napcat_deploy_start():
+    from core import napcat_deploy as nd
+    if _deploy_state["busy"]:
+        return jsonify({'success': False, 'error': '部署已在进行中'}), 400
+    if scan_napcat_exe():
+        return jsonify({'success': False, 'error': '已检测到 NapCat 安装，无需部署'}), 400
+
+    data = request.json or {}
+    bot_qq = str(data.get('bot_qq') or CONFIG.get('bot_qq') or '').strip()
+    if not bot_qq.isdigit():
+        return jsonify({'success': False, 'error': '请先在配置中填写机器人 QQ（bot_qq）'}), 400
+    token = str(data.get('token') or '').strip() or nd.get_latest_release() and None
+    token = token or "napcat"  # 用户未填则默认
+    install_dir = str(data.get('install_dir') or "D:\\napcat").strip()
+    ws_port = nd._free_port(3001)
+    webui_port = nd._free_port(6099)
+
+    _deploy_state.update({"busy": True, "last_error": "", "result": None})
+    threading.Thread(target=_do_deploy, args=(ws_port, webui_port, token, bot_qq, install_dir), daemon=True).start()
+    return jsonify({'success': True, 'message': '部署已开始，请关注进度'})
 
 
 @app.route('/api/restart', methods=['POST'])

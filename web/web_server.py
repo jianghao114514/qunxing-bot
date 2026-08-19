@@ -1105,6 +1105,52 @@ def api_stop():
     threading.Thread(target=_do_stop, daemon=True).start()
     return jsonify({'success': True, 'message': '正在停止...'})
 
+
+@app.route('/api/uninstall', methods=['POST'])
+def api_uninstall():
+    """卸载：按用户选择保留数据 / Python 环境 / NapCat。
+    生成独立 PowerShell 脚本：延迟数秒（让响应送达）→ 结束相关进程 → 按保留标记删除目录 → 删除自身"""
+    data = request.json or {}
+    keep_data = bool(data.get('keep_data'))
+    keep_python = bool(data.get('keep_python'))
+    keep_napcat = bool(data.get('keep_napcat'))
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 项目根 D:\bot
+    napcat_dir = "D:\\napcat"
+    script_lines = [
+        "$ErrorActionPreference = 'SilentlyContinue'",
+        "Start-Sleep -Seconds 6",
+        "# 结束本 bot 相关进程（按可执行路径/命令行匹配，避免误杀无关进程）",
+        "Get-CimInstance Win32_Process | Where-Object {{ $_.ExecutablePath -like '{}*' -or $_.CommandLine -like '*{}*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}".format(root, root.replace("\\", "\\\\")),
+    ]
+    if not keep_napcat:
+        script_lines.append(
+            "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like '*{}*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}".format("--enable-logging")
+        )
+    if not keep_data:
+        script_lines.append("Remove-Item -Recurse -Force '{}'".format(os.path.join(root, "bot_data")))
+    if not keep_python:
+        script_lines.append("Remove-Item -Recurse -Force '{}'".format(os.path.join(root, "python_runtime")))
+    if not keep_napcat and os.path.exists(napcat_dir):
+        script_lines.append("Remove-Item -Recurse -Force '{}'".format(napcat_dir))
+    script_lines.append("Remove-Item -Recurse -Force '{}'".format(root))
+    script_lines.append("Remove-Item -Force -ErrorAction SilentlyContinue $MyInvocation.MyCommand.Path")
+
+    import tempfile
+    fd, script_path = tempfile.mkstemp(suffix=".ps1")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write("\n".join(script_lines))
+
+    try:
+        subprocess.Popen(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script_path],
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+    except Exception as e:
+        return jsonify({'success': False, 'error': '启动卸载脚本失败：' + str(e)}), 500
+
+    return jsonify({'success': True, 'message': '正在卸载，几秒后完成'})
+
 def start_web_server():
     redirect_stdout_to_queue()
     threading.Thread(target=broadcast_log, daemon=True).start()

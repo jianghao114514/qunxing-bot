@@ -715,6 +715,7 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-danger" :disabled="restarting || stopping" @click="stopBot">停止机器人</button>
                                 <button class="btn btn-danger" :disabled="restarting || stopping" @click="restartBot">重启机器人</button>
+                                <button class="btn btn-outline-danger" :disabled="restarting || stopping || uninstalling" @click="uninstallBot">{{ uninstalling ? '卸载中...' : '卸载' }}</button>
                             </div>
                         </div></div></div>
                     </div>
@@ -1084,7 +1085,7 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
                 <div class="modal-header"><h5>{{ confirmDlg.title }}</h5><button type="button" class="btn-close" @click="confirmCancel"></button></div>
                 <div class="modal-body"><p style="white-space:pre-line;margin:0">{{ confirmDlg.text }}</p></div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @click="confirmCancel">取消</button>
+                    <button class="btn btn-secondary" @click="confirmCancel">{{ confirmDlg.cancelText || '取消' }}</button>
                     <button class="btn" :class="confirmDlg.danger ? 'btn-danger' : 'btn-primary'" @click="confirmOk">{{ confirmDlg.okText || '确定' }}</button>
                 </div>
             </div>
@@ -1321,7 +1322,9 @@ new Vue({
         restarting: false, logs: [], logId: 0,
         stopping: false,
         stopped: false,
-        confirmDlg: { show: false, title: '', text: '', okText: '确定', danger: false, onOk: null },
+        uninstalling: false,
+        uninstalled: false,
+        confirmDlg: { show: false, title: '', text: '', okText: '确定', cancelText: '取消', danger: false, onOk: null },
         napcat: { running: false, ready: false, port: null, token: '', url: '' },
         napcatBusy: false,
         napcatWaitTimer: null,
@@ -1633,8 +1636,8 @@ new Vue({
             });
         },
         loadPersonalities() { axios.get('/api/personalities').then(res => { this.personalities = res.data; this.personasLoaded = true; }); },
-        openConfirm(title, text, okText, danger, onOk) {
-            this.confirmDlg = { show: true, title, text, okText, danger: !!danger, onOk };
+        openConfirm(title, text, okText, danger, onOk, cancelText) {
+            this.confirmDlg = { show: true, title, text, okText, cancelText: cancelText || '取消', danger: !!danger, onOk };
         },
         confirmOk() {
             const fn = this.confirmDlg.onOk;
@@ -1794,6 +1797,42 @@ new Vue({
         biliRemove(uid) {
             this.openConfirm('取消关注', '确定取消关注 UID ' + uid + ' 吗？', '取消关注', true, () => {
                 axios.post('/api/bilibili/remove', { uid }).then(() => { this.loadBili(); this.showToast('已取消关注'); });
+            });
+        },
+        uninstallBot() {
+            this.openConfirm('卸载群星', '确定要卸载群星吗？\n接下来会依次询问数据、Python 环境、NapCat 的保留方式，全部确认后执行卸载。', '继续', true, () => {
+                this.askUninstallData();
+            });
+        },
+        askUninstallData() {
+            this.openConfirm('① 是否保留数据？', '保留 bot_data 目录（用户数据、配置、密钥）吗？\n\n点「保留」= 下次重装还能用；点「删除」= 彻底清除所有数据。', '保留', false, () => {
+                this.askUninstallPython(true);
+            }, '删除');
+        },
+        askUninstallPython(keepData) {
+            this.openConfirm('② 是否保留 Python 环境？', '保留 python_runtime 目录吗？\n\n保留 = 下次重装免去下载安装 Python；删除 = 彻底移除。', '保留', false, () => {
+                this.askUninstallNapcat(keepData, true);
+            }, '删除');
+        },
+        askUninstallNapcat(keepData, keepPython) {
+            this.openConfirm('③ 是否保留 NapCat？', '保留 NapCat 及其配置（D:\\napcat）吗？\n\n保留 = 下次重装无需重新下载部署；删除 = 连同 QQ 登录数据一并移除。', '保留', false, () => {
+                this.doUninstall(keepData, keepPython, true);
+            }, '删除');
+        },
+        doUninstall(keepData, keepPython, keepNapcat) {
+            this.uninstalling = true;
+            axios.post('/api/uninstall', { keep_data: keepData, keep_python: keepPython, keep_napcat: keepNapcat }).then(res => {
+                if (res.data.success) {
+                    this.uninstalled = true;
+                    this.uninstalling = false;
+                    this.showToast('卸载执行中，几秒后本机文件将被清除', 10000);
+                } else {
+                    this.uninstalling = false;
+                    this.showToast(res.data.error || '卸载启动失败');
+                }
+            }).catch(err => {
+                this.uninstalling = false;
+                this.showToast('卸载请求失败');
             });
         },
         restartBot() {

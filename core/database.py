@@ -402,10 +402,14 @@ def set_yandere_session(user_id, session, persona=None):
     update_cached_user(user_id, data)
 
 # ========== 临时对话（持久化到 conversations 目录，重启不丢） ==========
-def get_temp_conversation_key(user_id, persona=None):
+def get_temp_conversation_key(user_id, persona=None, group_id=None):
+    """会话键：私聊 = {qq}_私聊_{persona}，群聊 = {qq}_群{group_id}_{persona}。
+    不同群的聊天各自独立，避免记忆串味"""
     if persona is None:
         persona = get_current_persona(user_id)
-    return f"{user_id}_{persona}"
+    if group_id is not None:
+        return f"{user_id}_群{group_id}_{persona}"
+    return f"{user_id}_私聊_{persona}"
 
 def _conv_filename(key):
     safe = re.sub(r'[^\w\u4e00-\u9fff.-]', '_', key)
@@ -428,18 +432,18 @@ def _load_conversation(key):
 def _save_conversation(key, conv):
     _atomic_write(_conv_filename(key), conv)
 
-def get_temp_conversation(user_id, persona=None):
-    key = get_temp_conversation_key(user_id, persona)
+def get_temp_conversation(user_id, persona=None, group_id=None):
+    key = get_temp_conversation_key(user_id, persona, group_id)
     with _temp_conversations_lock:
         if key not in _temp_conversations:
             _temp_conversations[key] = _load_conversation(key)
         return _temp_conversations[key]
 
-def add_temp_message(user_id, role, content, persona=None):
+def add_temp_message(user_id, role, content, persona=None, group_id=None):
     if persona is None:
         persona = get_current_persona(user_id)
-    key = get_temp_conversation_key(user_id, persona)
-    conv = get_temp_conversation(user_id, persona)
+    key = get_temp_conversation_key(user_id, persona, group_id)
+    conv = get_temp_conversation(user_id, persona, group_id)
     conv["messages"].append({"role": role, "content": content, "timestamp": time.time()})
     conv["last_active"] = time.time()
     conv["message_count"] += 1
@@ -447,7 +451,7 @@ def add_temp_message(user_id, role, content, persona=None):
         _dirty_convs[key] = conv
     _ensure_flush_thread()
     if MEMORY_CONFIG["enable_auto_summary"] and conv["message_count"] >= MEMORY_CONFIG["max_messages_before_summary"]:
-        threading.Thread(target=summarize_and_clear, args=(user_id, persona), daemon=True).start()
+        threading.Thread(target=summarize_and_clear, args=(user_id, persona, group_id), daemon=True).start()
 
 def _extract_json(text):
     """从AI输出中提取JSON（容忍markdown代码块和多余文字）"""
@@ -481,10 +485,10 @@ def _clear_conversation(key):
     except Exception:
         pass
 
-def summarize_and_clear(user_id, persona=None):
+def summarize_and_clear(user_id, persona=None, group_id=None):
     if persona is None:
         persona = get_current_persona(user_id)
-    key = get_temp_conversation_key(user_id, persona)
+    key = get_temp_conversation_key(user_id, persona, group_id)
     mode = SYSTEM_CONFIG.get("memory_mode", "ai_summary")
     with _temp_conversations_lock:
         conv = _temp_conversations.get(key)
@@ -496,7 +500,15 @@ def summarize_and_clear(user_id, persona=None):
         extra = ""
         if get_persona_type(persona) == "yandere":
             extra = "注意：请重点提取用户提到的其他人名、社交活动、可能引起吃醋的信息。"
-        prompt = f"""请将以下对话总结为结构化记忆，输出JSON：{{"preferences":{{}},"facts":[],"recent_topics":[]}}。
+        old_summary = (old_mem or {}).get("summary", "")
+        prompt = f"""请将以下对话总结为结构化记忆，输出JSON：{{"preferences":{{}},"facts":[],"recent_topics":[],"summary":""}}。
+要求：
+1. facts / preferences 每条尽量标注发生时间（如「昨天」「3天前」，按消息时间戳判断）；
+2. recent_topics 保留最近讨论的话题；
+3. summary 用 2~4 句话浓缩这段对话的核心内容（后续将长期引用）；
+4. 结合旧摘要合并，不要丢失重要长期信息（如用户姓名、重大事件）。
+
+旧摘要：{old_summary}
 旧记忆：{json.dumps(old_mem, ensure_ascii=False)}
 新对话：{json.dumps(messages, ensure_ascii=False)}
 {extra}"""
@@ -505,6 +517,17 @@ def summarize_and_clear(user_id, persona=None):
         if new_mem and isinstance(new_mem, dict):
             if "yandere_events" in old_mem:
                 new_mem["yandere_events"] = old_mem["yandere_events"]
+            # 合并旧记忆中的偏好/事实（AI 可能遗漏）
+            for k in ("preferences", "facts"):
+                old_val = (old_mem or {}).get(k)
+                new_val = new_mem.get(k)
+                if isinstance(old_val, dict) and isinstance(new_val, dict):
+                    for kk, vv in old_val.items():
+                        new_val.setdefault(kk, vv)
+                elif isinstance(old_val, list) and isinstance(new_val, list):
+                    for item in old_val:
+                        if item not in new_val:
+                            new_val.append(item)
             update_long_memory(user_id, new_mem, persona)
             _clear_conversation(key)
     else:

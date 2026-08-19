@@ -1,6 +1,7 @@
 # plugins/aichat.py
 import json
 import time
+from datetime import datetime
 from plugins.base import BasePlugin
 from core.database import (
     get_current_persona, get_persona_type, get_long_memory,
@@ -13,6 +14,16 @@ from core.yandere import (
     build_context_blocks, compute_typing_delay, compute_session_action,
     yandere_recent_events_text
 )
+
+_WEEKDAY = ["一", "二", "三", "四", "五", "六", "日"]
+
+def _period_cn(hour):
+    if 5 <= hour < 9: return "早上"
+    if 9 <= hour < 12: return "上午"
+    if 12 <= hour < 14: return "中午"
+    if 14 <= hour < 18: return "下午"
+    if 18 <= hour < 23: return "晚上"
+    return "凌晨"
 
 class AIChatPlugin(BasePlugin):
     name = "aichat"
@@ -29,7 +40,8 @@ class AIChatPlugin(BasePlugin):
         persona = get_current_persona(user_id)
         long_memory = get_long_memory(user_id, persona)
         memory_text = json.dumps(long_memory, ensure_ascii=False)
-        temp_conv = get_temp_conversation(user_id, persona)
+        # 群聊会话按群隔离，私聊独立
+        temp_conv = get_temp_conversation(user_id, persona, group_id)
         history = [{"role": m["role"], "content": m["content"]} for m in temp_conv["messages"][-CONFIG["max_history"]:]]
         persona_prompt = PERSONALITIES.get(persona, {}).get("prompt", "你是一个友好的AI助手")
 
@@ -59,6 +71,15 @@ class AIChatPlugin(BasePlugin):
                                      f"这是本次会话第 {session['msg_count']} 条消息，"
                                      "节奏自然一些，不用每句都回得很满")
 
+        # ============ 通用时间语境（所有人设） ============
+        dt = datetime.now()
+        time_block = (f"现在时间：{dt.month}月{dt.day}日 周{_WEEKDAY[dt.weekday()]} "
+                      f"{_period_cn(dt.hour)} {dt.hour:02d}:{dt.minute:02d}")
+        if msg_type == 'group':
+            time_block += f"\n当前场景：QQ 群聊（群号 {group_id}）"
+        else:
+            time_block += "\n当前场景：QQ 私聊"
+
         # ============ 构建系统提示 ============
         events_text = ""
         if get_persona_type(persona) == "yandere":
@@ -67,8 +88,13 @@ class AIChatPlugin(BasePlugin):
         if is_story:
             system = "你是一个富有想象力的故事创作者。"
         else:
-            blocks = build_context_blocks(user_id, persona, msg_type)
-            system = f"{persona_prompt}\n\n{blocks['time']}\n{blocks['level']}\n{blocks['style']}\n{session_block or blocks['session']}\n\n长期记忆：{memory_text}"
+            blocks = build_context_blocks(user_id, persona, msg_type) if get_persona_type(persona) == "yandere" else None
+            if blocks:
+                system = f"{persona_prompt}\n\n{time_block}\n{blocks['level']}\n{blocks['style']}\n{session_block or blocks['session']}\n\n长期记忆：{memory_text}"
+            else:
+                style = ("回复要求：像真人聊天一样自然、口语化，不要书面语、不要像客服；"
+                         "根据语境决定回复长度，闲聊时简短，提问时详细一些。")
+                system = f"{persona_prompt}\n\n{time_block}\n{style}\n\n长期记忆：{memory_text}"
             if events_text:
                 system += f"\n{events_text}"
             if get_persona_type(persona) == "yandere":
@@ -81,8 +107,8 @@ class AIChatPlugin(BasePlugin):
         messages = [{"role": "system", "content": system}] + history + [{"role": "user", "content": clean_message}]
         content = call_with_messages(messages)
         if content:
-            add_temp_message(user_id, "user", clean_message, persona)
-            add_temp_message(user_id, "assistant", content, persona)
+            add_temp_message(user_id, "user", clean_message, persona, group_id)
+            add_temp_message(user_id, "assistant", content, persona, group_id)
             # 病娇回复模拟真人打字延迟
             if get_persona_type(persona) == "yandere" and not is_story:
                 delay = compute_typing_delay(len(content), msg_type)

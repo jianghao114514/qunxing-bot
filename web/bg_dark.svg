@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#120d33"/>
+      <stop offset="38%" stop-color="#141a3d"/>
+      <stop offset="72%" stop-color="#10142e"/>
+      <stop offset="100%" stop-color="#0a0e22"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#8b7bff" stop-opacity="0.16"/>
+      <stop offset="55%" stop-color="#8b7bff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#8b7bff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4fc3f7" stop-opacity="0.10"/>
+      <stop offset="60%" stop-color="#4fc3f7" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#4fc3f7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 暗色渐变天幕（纯背景，无星星无 UI） -->
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+
+  <!-- 极淡的两团光晕：左上紫、右下蓝，只有氛围感 -->
+  <circle cx="520" cy="330" r="700" fill="url(#glowA)"/>
+  <circle cx="1450" cy="800" r="780" fill="url(#glowB)"/>
+</svg>

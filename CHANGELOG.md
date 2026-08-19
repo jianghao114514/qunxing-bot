@@ -2,6 +2,15 @@
 
 版本号以年月日命名（如 `26.8.19` = 2026年8月19日），同一天内多次更新则以 `.1`、`.2` 依次递增。
 
+## 26.8.19.5
+
+### 品牌
+- 新增品牌 Logo（四角星 + 虚线轨道，紫蓝渐变）及去星星动画版
+- 网页标题栏显示 logo 图标（favicon）
+- 桌面管理窗口标题栏使用 logo 图标
+- 启动器 exe 使用 logo 作为程序图标
+- Logo 文件：web/logo.svg、web/logo.png、web/logo_no_star.svg/png、web/favicon.ico/png
+
 ## 26.8.19.4
 
 ### 修复

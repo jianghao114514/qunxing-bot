@@ -46,7 +46,7 @@ python main.py
 
 机器人通过 **NapCat**（QQ 协议端）收发消息，需要：
 
-1. 下载 [NapCat](https://napneko.github.io/) 免安装版并解压
+1. 下载 [NapCat](https://napneko.github.io/) 免安装版并解压到本程序目录下的 `napcat` 文件夹（或在面板「NapCat 管理」一键自动部署）
 2. 启动 NapCat，手机 QQ 扫码登录机器人账号
 3. 在 NapCat「网络配置」中开启 WebSocket 服务器（默认端口 3001）
 4. 打开面板，在「配置引导」中填写：

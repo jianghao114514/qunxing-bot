@@ -780,12 +780,14 @@ def _find_napcat_webui_json():
     """定位 NapCat webui.json（含端口/登录令牌）。napcat_exe 目录已知则从其推断，否则搜索常见位置"""
     candidates = []
     exe = CONFIG.get("napcat_exe", "")
+    bot_napcat = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "napcat")
     if exe:
         base = os.path.dirname(os.path.dirname(exe))  # bootmain/.. -> napcat 根
         candidates.append(os.path.join(base, "NapCat*Shell"))
         candidates.append(os.path.join(base, "napcat", "config", "webui.json"))
         candidates.append(os.path.join(base, "config", "webui.json"))
         candidates.append(base)
+    candidates.append(os.path.join(bot_napcat, "config", "webui.json"))
     candidates.append("D:\\napcat\\NapCat*Shell")
     candidates.append("D:\\napcat\\napcat\\config\\webui.json")
     candidates.append("D:\\napcat\\config\\webui.json")
@@ -1050,7 +1052,7 @@ def api_napcat_deploy_start():
         return jsonify({'success': False, 'error': '请先在配置中填写机器人 QQ（bot_qq）'}), 400
     token = str(data.get('token') or '').strip() or nd.get_latest_release() and None
     token = token or "napcat"  # 用户未填则默认
-    install_dir = str(data.get('install_dir') or "D:\\napcat").strip()
+    install_dir = str(data.get('install_dir') or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "napcat")).strip()
     ws_port = nd._free_port(3001)
     webui_port = nd._free_port(6099)
 
@@ -1116,7 +1118,7 @@ def api_uninstall():
     keep_napcat = bool(data.get('keep_napcat'))
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 项目根 D:\bot
-    napcat_dir = "D:\\napcat"
+    napcat_dir = os.path.join(root, "napcat")
     script_lines = [
         "$ErrorActionPreference = 'SilentlyContinue'",
         "Start-Sleep -Seconds 6",

@@ -1680,7 +1680,7 @@ new Vue({
         },
         napcatDeployAsk(mode) {
             if (mode === 'manual') {
-                this.openConfirm('手动部署 NapCat', '请前往 NapCat 官网或 GitHub Releases 下载免安装版（NapCat.Shell.Windows.Node.zip），解压到 D:\\napcat，然后重启机器人即可自动识别。\n\n官网：https://napneko.github.io/', '知道了', false, () => {});
+                this.openConfirm('手动部署 NapCat', '请前往 NapCat 官网或 GitHub Releases 下载免安装版（NapCat.Shell.Windows.Node.zip），解压到本程序目录下的 napcat 文件夹，然后重启机器人即可自动识别。\n\n官网：https://napneko.github.io/', '知道了', false, () => {});
                 return;
             }
             this.deployToken = '';

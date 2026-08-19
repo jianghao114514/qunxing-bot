@@ -6,11 +6,15 @@ import os
 
 def scan_napcat_exe():
     """扫描本机 NapCatWinBootMain.exe 位置，返回第一个命中的完整路径；找不到返回 None
+    优先 bot 目录内置 napcat/（自动部署目标），再扫常见盘符。
     兼容目录结构：
       - v2 完整运行目录：NapCat*.Shell/ 下 NapCatWinBootMain.exe 与 QQ.exe 同目录
       - v4 目录：<root>/napcat/NapCatWinBootMain.exe（同层 napcat/config）
       - 占位目录 bootmain/（缺 QQ.exe，降级）"""
     roots = []
+    # bot 目录内置 napcat/（本机自动部署的目标位置）
+    bot_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    roots.append(os.path.join(bot_root, "napcat"))
     for drv in ("D:", "C:", "E:"):
         root = drv + "\\"
         roots += [

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8b7bff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#4fc3f7" stop-opacity="0.35"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#8b7bff" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#8b7bff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#8b7bff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 背景光晕（原位置原大小） -->
+  <circle cx="128" cy="128" r="96" fill="url(#glow)"/>
+
+  <!-- 虚线轨道环（旋转 15°） -->
+  <g transform="rotate(15 128 128)">
+    <circle cx="128" cy="128" r="92" fill="none" stroke="url(#ringGrad)" stroke-width="2.5"
+            stroke-dasharray="10 14" stroke-linecap="round"/>
+    <!-- 轨道上的小卫星点 -->
+    <circle cx="128" cy="36" r="5" fill="#8b7bff" opacity="0.9"/>
+    <circle cx="220" cy="128" r="3.5" fill="#4fc3f7" opacity="0.75"/>
+  </g>
+
+  <!-- 中心虚位：与四角星同圆心的参考环（方便对齐，可删除） -->
+  <circle cx="128" cy="132" r="46" fill="none" stroke="#8b7bff" stroke-opacity="0.25" stroke-width="1.5" stroke-dasharray="4 6"/>
+
+  <!-- 小点缀星（原位置） -->
+  <circle cx="74" cy="84" r="3" fill="#ffffff" opacity="0.8"/>
+  <circle cx="186" cy="190" r="2.5" fill="#ffffff" opacity="0.6"/>
+  <circle cx="196" cy="74" r="2" fill="#4fc3f7" opacity="0.9"/>
+</svg>

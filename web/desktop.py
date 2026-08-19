@@ -75,6 +75,7 @@ def run_desktop():
         min_size=(1000, 680),
         text_select=True,
         confirm_close=True,
+        icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), "favicon.ico"),
     )
     window.events.closed += _on_window_closed
     webview.start()

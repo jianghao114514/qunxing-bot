@@ -137,6 +137,26 @@ def index():
     return get_template(), 200, {'Content-Type': 'text/html', 'Cache-Control': 'no-store'}
 
 
+@app.route('/favicon.ico')
+def favicon_ico():
+    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "favicon.ico"))
+
+
+@app.route('/favicon.png')
+def favicon_png():
+    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "favicon.png"), mimetype='image/png')
+
+
+@app.route('/logo.svg')
+def logo_svg():
+    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.svg"), mimetype='image/svg+xml')
+
+
+@app.route('/logo.png')
+def logo_png():
+    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png"), mimetype='image/png')
+
+
 @app.route('/api/status')
 def api_status():
     global _stardust_cache_ts

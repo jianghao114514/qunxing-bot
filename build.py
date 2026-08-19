@@ -59,8 +59,10 @@ def main():
             p = os.path.join(d, f)
             if os.path.isfile(os.path.join(ROOT, p)) and f.endswith((".py", ".html")):
                 datas += ["--add-data", p + ";" + d]
+    icon_path = os.path.join(ROOT, "web", "favicon.ico")
+    icon_args = ["--icon", icon_path] if os.path.isfile(icon_path) else []
     if not run(py + ["-m", "PyInstaller", "--onefile", "--console",
-                     "--name", EXE_NAME, "--noconfirm"] + datas + ["launcher.py"]):
+                     "--name", EXE_NAME, "--noconfirm"] + icon_args + datas + ["launcher.py"]):
         say("[失败] 打包失败，请把上方错误信息截图反馈")
         wait_key()
         sys.exit(1)

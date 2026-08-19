@@ -213,6 +213,8 @@ class Bot:
         threading.Thread(target=unload_inactive_users, daemon=True).start()
         from plugins.yandere_active import yandere_active_thread
         threading.Thread(target=yandere_active_thread, args=(self,), daemon=True).start()
+        from plugins.bilibili_watch import bilibili_watch_thread
+        threading.Thread(target=bilibili_watch_thread, args=(self,), daemon=True).start()
 
     def heartbeat_thread(self):
         global should_reconnect

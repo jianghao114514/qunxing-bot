@@ -52,6 +52,10 @@ DEFAULT_CONFIG = {
     "napcat_watchdog_enabled": True,
     "napcat_exe": "",
     "napcat_qq": "",
+    "bilibili_enabled": False,
+    "bilibili_watch": [],
+    "bilibili_alert_group": "",
+    "bilibili_check_interval": 120,
     "system_name": "群星",
     "data_dir": str(DATA_DIR),
     "users_dir": str(USERS_DIR),
@@ -187,6 +191,8 @@ def load_config():
                  "web_theme", "bot_display_name", "currency_name",
                  "web_window_width", "web_window_height", "web_auto_open_browser",
                  "napcat_watchdog_enabled", "napcat_exe", "napcat_qq",
+                 "bilibili_enabled", "bilibili_watch", "bilibili_alert_group",
+                 "bilibili_check_interval",
                  "app_id", "app_secret", "app_token"]
     for key in conn_keys:
         if key in data:
@@ -269,6 +275,10 @@ def save_config():
         "napcat_watchdog_enabled": CONFIG.get("napcat_watchdog_enabled", True),
         "napcat_exe": CONFIG.get("napcat_exe", ""),
         "napcat_qq": CONFIG.get("napcat_qq", CONFIG.get("bot_qq", "")),
+        "bilibili_enabled": CONFIG.get("bilibili_enabled", False),
+        "bilibili_watch": CONFIG.get("bilibili_watch", []),
+        "bilibili_alert_group": CONFIG.get("bilibili_alert_group", ""),
+        "bilibili_check_interval": CONFIG.get("bilibili_check_interval", 120),
         "feature_switches": FEATURE_SWITCHES,
         "system_config": SYSTEM_CONFIG,
         "personalities": PERSONALITIES,

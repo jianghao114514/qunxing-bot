@@ -879,6 +879,88 @@ def api_napcat_start():
         return jsonify({'success': False, 'error': '启动失败：' + str(e)}), 500
 
 
+# ============ B站监控管理 ============
+
+@app.route('/api/bilibili/status')
+def api_bilibili_status():
+    from core.bilibili import search_up, get_live_info
+    watch = CONFIG.get("bilibili_watch", []) or []
+    items = []
+    for it in watch:
+        uid = str(it.get("uid", ""))
+        info = get_live_info(uid) if uid.isdigit() else None
+        items.append({
+            "uid": uid,
+            "name": it.get("name", ""),
+            "living": bool(info and info["living"]),
+            "title": info["title"] if info else "",
+            "url": info["url"] if info else ""
+        })
+    return jsonify({
+        "enabled": CONFIG.get("bilibili_enabled", False),
+        "alert_group": CONFIG.get("bilibili_alert_group", ""),
+        "check_interval": CONFIG.get("bilibili_check_interval", 120),
+        "watch": items
+    })
+
+
+@app.route('/api/bilibili/search', methods=['POST'])
+def api_bilibili_search():
+    from core.bilibili import search_up
+    kw = (request.json.get('keyword') or '').strip()
+    if not kw:
+        return jsonify({'success': False, 'error': '请输入UP主昵称或UID'}), 400
+    if kw.isdigit():
+        return jsonify({'success': True, 'results': [{'uid': kw, 'name': 'UID:' + kw}]})
+    results = search_up(kw)
+    return jsonify({'success': True, 'results': results})
+
+
+@app.route('/api/bilibili/add', methods=['POST'])
+def api_bilibili_add():
+    uid = str(request.json.get('uid') or '').strip()
+    name = str(request.json.get('name') or '').strip()
+    if not uid.isdigit():
+        return jsonify({'success': False, 'error': 'UID 必须是数字'}), 400
+    watch = CONFIG.get("bilibili_watch", []) or []
+    if any(str(w.get("uid")) == uid for w in watch):
+        return jsonify({'success': False, 'error': '该 UP 主已在监控列表'}), 400
+    watch.append({"uid": uid, "name": name})
+    CONFIG["bilibili_watch"] = watch
+    from core.config import save_config
+    save_config()
+    return jsonify({'success': True})
+
+
+@app.route('/api/bilibili/remove', methods=['POST'])
+def api_bilibili_remove():
+    uid = str(request.json.get('uid') or '').strip()
+    CONFIG["bilibili_watch"] = [w for w in (CONFIG.get("bilibili_watch") or []) if str(w.get("uid")) != uid]
+    from core.config import save_config
+    save_config()
+    return jsonify({'success': True})
+
+
+@app.route('/api/bilibili/config', methods=['POST'])
+def api_bilibili_config():
+    key = request.json.get('key')
+    value = request.json.get('value')
+    if key == 'enabled':
+        CONFIG["bilibili_enabled"] = str(value).strip().lower() in ('true', '1', 'yes', 'on')
+    elif key == 'alert_group':
+        CONFIG["bilibili_alert_group"] = str(value)
+    elif key == 'check_interval':
+        try:
+            CONFIG["bilibili_check_interval"] = max(int(value), 30)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': '间隔必须是数字（秒）'}), 400
+    else:
+        return jsonify({'success': False, 'error': '未知配置项'}), 400
+    from core.config import save_config
+    save_config()
+    return jsonify({'success': True})
+
+
 @app.route('/api/restart', methods=['POST'])
 def api_restart():
     """一键重启：1 秒后在此进程外拉起新的 main.py，然后强制退出当前进程"""

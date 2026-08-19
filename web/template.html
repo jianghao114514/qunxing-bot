@@ -617,6 +617,7 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
             <a href="#" @click.prevent="currentTab='stats'" class="nav-item" :class="navCls('stats')">◈ 统计分析</a>
             <a href="#" @click.prevent="currentTab='logs'" class="nav-item" :class="navCls('logs')">◈ 实时日志</a>
             <a href="#" @click.prevent="currentTab='api'" class="nav-item" :class="navCls('api')">◈ API管理</a>
+            <a href="#" @click.prevent="currentTab='bilibili'" class="nav-item" :class="navCls('bilibili')">◈ B站监控</a>
             <div class="sidebar-foot">
                 <div class="foot-status">
                     <span class="dot" :class="status.ai_health ? 'ok' : 'bad'"></span><span>星核{{ status.ai_health ? '稳定运转' : '状态异常' }}</span>
@@ -982,6 +983,54 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
                     </div>
                     </transition>
                 </div>
+
+                <!-- B站监控 -->
+                <div v-if="currentTab=='bilibili'">
+                    <div class="card glass"><div class="card-header">B站开播提醒</div><div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div>
+                                <label class="mb-1">开播提醒开关</label>
+                                <small class="text-muted d-block">开启后轮询监控列表，UP 主开播时自动发送提醒</small>
+                            </div>
+                            <label class="switch"><input type="checkbox" :checked="bili.enabled" @change="biliSaveConfig('enabled', $event.target.checked)"><span class="slider"></span></label>
+                        </div>
+                        <div class="mb-3">
+                            <label>提醒发送群号（QQ 群号）</label>
+                            <input type="text" class="form-control" v-model="bili.alert_group" @change="biliSaveConfig('alert_group', bili.alert_group)" placeholder="留空则不发送">
+                            <small class="text-muted">留空时开播提醒不发送到任何群</small>
+                        </div>
+                        <div class="mb-3">
+                            <label>轮询间隔（秒，最小 30）</label>
+                            <input type="number" class="form-control" v-model="bili.check_interval" @change="biliSaveConfig('check_interval', bili.check_interval)">
+                        </div>
+                        <hr>
+                        <h6>监控列表</h6>
+                        <div class="d-flex gap-2 mb-2">
+                            <input type="text" class="form-control" v-model="biliSearchKw" placeholder="输入UP主昵称搜索（或直接填UID）" @keyup.enter="biliSearch">
+                            <button class="btn btn-primary" @click="biliSearch">搜索</button>
+                        </div>
+                        <div v-if="biliResults.length" class="mb-2">
+                            <div v-for="r in biliResults" :key="r.uid" class="d-flex align-items-center justify-content-between border rounded px-2 py-1 mb-1">
+                                <div><b>{{ r.name }}</b><small class="text-muted ms-2">UID: {{ r.uid }}</small><small class="text-muted ms-2" v-if="r.fans">粉丝 {{ r.fans }}</small></div>
+                                <button class="btn btn-sm btn-success" @click="biliAdd(r.uid, r.name)">+ 关注</button>
+                            </div>
+                            <div class="text-muted small" v-if="biliResults.length===0">未找到相关 UP 主</div>
+                        </div>
+                        <table class="table">
+                            <thead><tr><th>UID</th><th>昵称</th><th>状态</th><th>直播间</th><th>操作</th></tr></thead>
+                            <tbody>
+                                <tr v-if="bili.watch.length===0"><td colspan="5" class="text-center text-secondary py-3">暂无监控账号，搜索并关注后即可开启开播提醒</td></tr>
+                                <tr v-for="w in bili.watch" :key="w.uid">
+                                    <td>{{ w.uid }}</td>
+                                    <td>{{ w.name }}</td>
+                                    <td><span class="badge" :class="w.living ? 'bg-success' : 'bg-secondary'">{{ w.living ? '直播中' : '未开播' }}</span></td>
+                                    <td><a v-if="w.url" :href="w.url" target="_blank" rel="noopener">{{ w.title || '进入直播间' }}</a><span v-else class="text-muted">-</span></td>
+                                    <td><button class="btn btn-sm btn-danger" @click="biliRemove(w.uid)">取消关注</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div></div>
+                </div>
             </div>
             </transition>
         </div>
@@ -1245,6 +1294,9 @@ new Vue({
         napcatBusy: false,
         napcatWaitTimer: null,
         toastMsg: '',
+        bili: { enabled: false, alert_group: '', check_interval: 120, watch: [] },
+        biliSearchKw: '',
+        biliResults: [],
         newPersonaName: '', newPersonaPrompt: '', newPersonaType: 'normal',
         apiProviders: [], showAddModal: false, showEditModal: false,
         newApi: { name: '', api_key: '', base_url: '', model_name: '', priority: 100, max_requests_per_day: 0, is_public_welfare: false, provider_name: '', admin_url: '' },
@@ -1338,6 +1390,7 @@ new Vue({
         setInterval(() => this.loadStatus(), 5000);
         this.loadNapcat();
         setInterval(() => this.loadNapcat(), 15000);
+        this.loadBili();
         socket.on('log', (data) => {
             this.logs.push({ id: this.logId++, text: data.data });
             if (this.logs.length > 500) this.logs.shift();
@@ -1637,6 +1690,37 @@ new Vue({
                 }
             }).catch(() => this.showToast('获取 NapCat 状态失败'));
         },
+        loadBili() {
+            axios.get('/api/bilibili/status').then(res => { this.bili = res.data; }).catch(() => {});
+        },
+        biliSaveConfig(key, val) {
+            axios.post('/api/bilibili/config', { key, value: val }).then(() => { this.loadBili(); this.showToast('已保存'); }).catch(() => this.showToast('保存失败'));
+        },
+        biliSearch() {
+            const kw = this.biliSearchKw.trim();
+            if (!kw) return;
+            if (/^\d+$/.test(kw)) {
+                this.biliResults = [{ uid: kw, name: 'UID:' + kw, fans: 0 }];
+                return;
+            }
+            axios.post('/api/bilibili/search', { keyword: kw }).then(res => {
+                this.biliResults = res.data.results || [];
+                if (!this.biliResults.length) this.showToast('未找到相关 UP 主');
+            }).catch(err => this.showToast(err.response && err.response.data ? err.response.data.error : '搜索失败'));
+        },
+        biliAdd(uid, name) {
+            axios.post('/api/bilibili/add', { uid, name }).then(() => {
+                this.biliResults = [];
+                this.biliSearchKw = '';
+                this.loadBili();
+                this.showToast('已加入监控列表');
+            }).catch(err => this.showToast(err.response && err.response.data ? err.response.data.error : '添加失败'));
+        },
+        biliRemove(uid) {
+            this.openConfirm('取消关注', '确定取消关注 UID ' + uid + ' 吗？', '取消关注', true, () => {
+                axios.post('/api/bilibili/remove', { uid }).then(() => { this.loadBili(); this.showToast('已取消关注'); });
+            });
+        },
         restartBot() {
             this.openConfirm('重启机器人', '确定要重启机器人吗？\n重启期间服务会中断约 10~20 秒，重启后不弹出窗口，本页面将自动恢复。', '重启', true, () => {
                 this.restarting = true;
@@ -1798,7 +1882,7 @@ new Vue({
         }
     },
     watch: {
-        currentTab(val) { if (val === 'users') this.loadUsers(1); if (val === 'stats') this.loadStats(); }
+        currentTab(val) { if (val === 'users') this.loadUsers(1); if (val === 'stats') this.loadStats(); if (val === 'bilibili') this.loadBili(); }
     }
 }).$mount();
 vm = document.querySelector('#app').__vue__;

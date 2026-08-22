@@ -283,6 +283,23 @@ def update_planet(user_id, planet_data):
     data["planet"] = planet_data
     update_cached_user(user_id, data)
 
+def list_planets():
+    """遍历所有用户，返回 [(user_id, planet_dict), ...]，仅含已领养星球的用户。不创建新用户。"""
+    result = []
+    try:
+        for f in USERS_DIR.glob("*.json"):
+            try:
+                with open(f, "r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+                planet = data.get("planet")
+                if planet and isinstance(planet, dict):
+                    result.append((str(data.get("user_id") or f.stem), planet))
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"遍历星球失败: {e}")
+    return result
+
 # ========== 人设管理 ==========
 def get_current_persona(user_id):
     data = get_cached_user(user_id)

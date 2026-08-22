@@ -5,6 +5,7 @@ import random
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from core.menu_image import _load_font, _make_background, _draw_stars
 from core.config import SYSTEM_CONFIG, currency_name
+from core.planet_mode import pending_estimate, bond_title, bond_mult, temperament_mult, TEMPERAMENTS
 
 STAGE_NAMES = ["星云", "彗星", "行星", "恒星", "超新星"]
 STAGE_ICONS = ["☁", "☄", "🪐", "☀", "✨"]
@@ -184,14 +185,10 @@ def build_planet_card(planet):
     card_x, card_w = 86, w - 172
     draw.rounded_rectangle([card_x, y, card_x + card_w, y + 96], radius=16,
                            fill=(255, 255, 255, 10), outline=(255, 255, 255, 22), width=1)
-    now = __import__("time").time()
-    hours = max(0.0, (now - planet.get("last_collect", now)) / 3600)
-    rate = level * _cfg("planet_collect_per_hour", 1)
-    hours = min(hours, _cfg("planet_collect_max_hours", 24))
-    pending = int(hours * rate * (0.5 if energy < 30 else 1))
-    draw.text((card_x + 30, y + 26), f"连续照料 {planet.get('streak', 0)} 天", font=f_stat,
+    pending = pending_estimate(planet)
+    draw.text((card_x + 30, y + 26), f"连续照料 {planet.get('streak', 0)} 天 · {planet.get('temperament', '活泼')}", font=f_stat,
               fill=(255, 255, 255, 230), anchor="lm")
-    draw.text((card_x + 30, y + 62), f"累计投入 {planet.get('stardust_spent', 0)} {currency_name()}", font=f_small,
+    draw.text((card_x + 30, y + 62), f"亲密度 {planet.get('bond', 0)} · {bond_title(planet.get('bond', 0))} · 累计投入 {planet.get('stardust_spent', 0)} {currency_name()}", font=f_small,
               fill=(154, 164, 199, 255), anchor="lm")
     draw.text((card_x + card_w - 30, y + 26), f"可收取 ≈ {pending} {currency_name()}", font=f_stat,
               fill=(90, 255, 160, 255), anchor="rm")
@@ -199,6 +196,8 @@ def build_planet_card(planet):
 
     # 状态徽章
     badges = []
+    if planet.get("bond", 0) > 0:
+        badges.append(("❤ 亲密度 %d · %s" % (planet.get("bond", 0), bond_title(planet.get("bond", 0))), (255, 150, 180)))
     if planet.get("collect_boost", 1) > 1:
         badges.append(("☄ 陨石雨：下次产出 ×%d" % planet["collect_boost"], (139, 195, 255)))
     if planet.get("merchant_offer"):
@@ -216,7 +215,7 @@ def build_planet_card(planet):
     # 底部提示
     draw.line([_MARGIN_X, _H - 120, w - _MARGIN_X, _H - 120], fill=(255, 255, 255, 40), width=1)
     draw.text((w // 2, _H - 78),
-              "照料星球 · 收取产出 · 星球改名 · 卖掉星球",
+              "照料星球 · 收取产出 · 星球改名 · 星球手册",
               font=f_footer, fill=(154, 164, 199, 255), anchor="mm")
 
     buf = io.BytesIO()

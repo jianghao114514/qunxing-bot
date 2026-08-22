@@ -115,6 +115,10 @@ def load_config():
                 "planet_event_min_interval": 3600, "planet_event_prob": 0.4,
                 "planet_sulk_days": 5, "planet_sulk_penalty": 0.7,
                 "planet_visit_care_exp": 5,
+                "planet_bond_per_feed": 2, "planet_bond_per_collect": 1,
+                "planet_bond_per_visit": 5, "planet_bond_per_visit_self": 2,
+                "planet_bond_per_whale": 12, "planet_bond_per_aurora": 15,
+                "planet_merchant_expire_hours": 6,
                 "ssr_prob": 0.05, "sr_prob": 0.15, "r_prob": 0.8,
                 "memory_timeout_seconds": MEMORY_CONFIG["timeout_seconds"],
                 "memory_max_messages": MEMORY_CONFIG["max_messages_before_summary"],
@@ -172,6 +176,10 @@ def load_config():
         "planet_event_min_interval": 3600, "planet_event_prob": 0.4,
         "planet_sulk_days": 5, "planet_sulk_penalty": 0.7,
         "planet_visit_care_exp": 5,
+        "planet_bond_per_feed": 2, "planet_bond_per_collect": 1,
+        "planet_bond_per_visit": 5, "planet_bond_per_visit_self": 2,
+        "planet_bond_per_whale": 12, "planet_bond_per_aurora": 15,
+        "planet_merchant_expire_hours": 6,
     }
     missing = {k: v for k, v in planet_defaults.items() if k not in SYSTEM_CONFIG}
     if missing:

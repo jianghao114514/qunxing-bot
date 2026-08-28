@@ -3,6 +3,7 @@
 import time
 from core.config import CONFIG
 from core.bilibili import get_live_info
+from core.group_config import feature_enabled
 
 _last_state = {}
 
@@ -24,6 +25,9 @@ def _notify(bot, info, watched_name):
     if info.get("cover"):
         msg += "\n[CQ:image,url={}]".format(info["cover"])
     if group:
+        if not feature_enabled(group, "bilibili"):
+            print("B站开播提醒：该群已关闭 B站监控功能，跳过发送")
+            return
         try:
             bot.send_msg(group, msg)
         except Exception as e:
@@ -36,7 +40,7 @@ def bilibili_watch_thread(bot):
     print(">>> B站开播监控线程已启动")
     while True:
         time.sleep(5)
-        if not CONFIG.get("bilibili_enabled", False):
+        if not (CONFIG.get("bilibili_enabled", False) and feature_enabled(None, "bilibili")):
             continue
         interval = max(int(CONFIG.get("bilibili_check_interval", 120)), 30)
         watch = CONFIG.get("bilibili_watch", []) or []

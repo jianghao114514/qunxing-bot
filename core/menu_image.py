@@ -36,6 +36,7 @@ _FEATURE_META = [
     ("profile", "名", "我的名片 - 查看自己的星空名片"),
     ("feedback", "信", "反馈 内容 - 提交建议"),
     ("aichat", "AI", "@机器人 任意文字 - AI聊天（支持故事模式）"),
+    ("bilibili", "播", "B站监控 - 面板配置UP主，开播提醒到指定群"),
 ]
 
 _WIDTH = 1080
@@ -281,7 +282,7 @@ _FEATURE_NAMES = {
     "joke": "AI笑话", "kfc": "疯狂星期四", "emo": "每日emo", "random_img": "随机美图",
     "random_waifu": "每日老婆", "persona": "AI人设", "gift": "赠送碎片", "query": "背包查询",
     "planet": "星球养成", "feedback": "问题反馈", "aichat": "AI智能聊天",
-    "profile": "星空名片",
+    "bilibili": "B站开播提醒", "profile": "星空名片",
 }
 
 

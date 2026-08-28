@@ -355,7 +355,7 @@ def api_user_delete(qq):
 
 @app.route('/api/features')
 def api_features():
-    name_map = {'signin':'签到','draw':'抽卡','tarot':'塔罗','aichat':'AI聊天','weather':'天气','joke':'笑话','kfc':'疯狂星期四','emo':'每日emo','random_img':'随机美图','random_waifu':'每日老婆','persona':'AI人设','feedback':'问题反馈','gift':'赠送碎片','query':'背包查询','planet':'星球养成','profile':'星空名片'}
+    name_map = {'signin':'签到','draw':'抽卡','tarot':'塔罗','aichat':'AI聊天','weather':'天气','joke':'笑话','kfc':'疯狂星期四','emo':'每日emo','random_img':'随机美图','random_waifu':'每日老婆','persona':'AI人设','feedback':'问题反馈','gift':'赠送碎片','query':'背包查询','planet':'星球养成','profile':'星空名片','bilibili':'B站监控'}
     features = FEATURE_SWITCHES
     return jsonify({name_map.get(k,k): v for k,v in features.items()})
 
@@ -363,7 +363,7 @@ def api_features():
 def api_toggle():
     data = request.json
     cn = data.get('feature')
-    rev = {'签到':'signin','抽卡':'draw','塔罗':'tarot','AI聊天':'aichat','天气':'weather','笑话':'joke','疯狂星期四':'kfc','每日emo':'emo','随机美图':'random_img','每日老婆':'random_waifu','AI人设':'persona','问题反馈':'feedback','赠送碎片':'gift','背包查询':'query','星球养成':'planet','星空名片':'profile'}
+    rev = {'签到':'signin','抽卡':'draw','塔罗':'tarot','AI聊天':'aichat','天气':'weather','笑话':'joke','疯狂星期四':'kfc','每日emo':'emo','随机美图':'random_img','每日老婆':'random_waifu','AI人设':'persona','问题反馈':'feedback','赠送碎片':'gift','背包查询':'query','星球养成':'planet','星空名片':'profile','B站监控':'bilibili'}
     feat = rev.get(cn, cn)
     FEATURE_SWITCHES[feat] = data.get('enabled')
     from core.config import save_config
@@ -559,12 +559,18 @@ def api_stats():
     cards_list = []
     tier_dist = {t: 0 for t in ['SSR', 'SR', 'R']}
     total_users = 0
-    for f in os.listdir(CONFIG["users_dir"]):
+    users_dir = CONFIG.get("users_dir") or ""
+    if not users_dir or not os.path.isdir(users_dir):
+        return jsonify({'total_users': 0, 'total_stardust': 0, 'total_cards': 0,
+                        'signed_today': 0, 'signin_trend': [], 'stardust_distribution': [],
+                        'range_labels': ['0-50'], 'tier_distribution': {'SSR': 0, 'SR': 0, 'R': 0}})
+    for f in os.listdir(users_dir):
         if not f.endswith(".json"):
             continue
         total_users += 1
         try:
-            data = get_cached_user(f[:-5])
+            with open(os.path.join(users_dir, f), "r", encoding="utf-8") as fp:
+                data = json.load(fp)
         except Exception:
             continue
         last = data.get('last_signin')

@@ -24,7 +24,7 @@ FEATURE_NAMES = {
     "weather": "天气", "joke": "笑话", "kfc": "疯狂星期四", "emo": "每日emo",
     "random_img": "随机美图", "random_waifu": "每日老婆", "persona": "AI人设",
     "feedback": "问题反馈", "gift": "赠送碎片", "query": "背包查询",
-    "planet": "星球养成", "profile": "星空名片",
+    "planet": "星球养成", "profile": "星空名片", "bilibili": "B站监控",
 }
 
 

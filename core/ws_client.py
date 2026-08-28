@@ -6,6 +6,7 @@ import time
 import re
 import uuid
 from core.config import CONFIG, FEATURE_SWITCHES, SYSTEM_CONFIG, MEMORY_CONFIG, load_config, currency_name
+from core.group_config import register_group, feature_enabled, welcome_message_for, welcome_bonus_for
 from core.database import (
     get_cached_user, update_cached_user, unload_inactive_users,
     get_current_persona, set_current_persona, get_persona_type,
@@ -140,7 +141,7 @@ class Bot:
             msg_type, group_id, user_qq, nickname,
             raw_message, clean_message, is_at_bot
         )
-        if not handled and FEATURE_SWITCHES.get("aichat", True):
+        if not handled and feature_enabled(group_id, "aichat"):
             from plugins.aichat import AIChatPlugin
             plugin = AIChatPlugin(self)
             plugin.handle(msg_type, group_id, user_qq, nickname, raw_message, clean_message, is_at_bot)
@@ -169,6 +170,7 @@ class Bot:
                 processed_messages[msg_id] = now
         if data.get("post_type") == "message" and data.get("message_type") == "group":
             self._maybe_fetch_nicknames(data["group_id"])
+            register_group(data["group_id"])
             threading.Thread(target=self.process_message, args=(
                 'group', data["group_id"], data["sender"]["user_id"],
                 data["sender"]["nickname"], data["raw_message"]
@@ -186,9 +188,10 @@ class Bot:
             if key in last_group_increase and now - last_group_increase[key] < 5:
                 return
             last_group_increase[key] = now
-            add_stardust(user_id, CONFIG["welcome_bonus"])
-            bonus = CONFIG["welcome_bonus"]
-            msg = (CONFIG.get("welcome_message") or "").strip()
+            g_bonus = welcome_bonus_for(group_id)
+            bonus = g_bonus if g_bonus is not None else CONFIG["welcome_bonus"]
+            add_stardust(user_id, bonus)
+            msg = (welcome_message_for(group_id) or CONFIG.get("welcome_message") or "").strip()
             if not msg:
                 msg = "[CQ:at,qq={qq}] 欢迎！送你 {bonus} {currency}。"
             msg = (msg.replace("{qq}", str(user_id))

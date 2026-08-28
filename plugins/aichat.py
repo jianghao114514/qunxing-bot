@@ -10,6 +10,7 @@ from core.database import (
 )
 from core.ai import call_with_messages
 from core.config import CONFIG, PERSONALITIES
+from core.group_config import model_name_for
 from core.yandere import (
     build_context_blocks, compute_typing_delay, compute_session_action,
     yandere_recent_events_text
@@ -105,7 +106,8 @@ class AIChatPlugin(BasePlugin):
                                "不想聊时自然结束话题，不用一直陪聊。")
 
         messages = [{"role": "system", "content": system}] + history + [{"role": "user", "content": clean_message}]
-        content = call_with_messages(messages)
+        group_model = model_name_for(group_id) if group_id is not None else None
+        content = call_with_messages(messages, model_override=group_model)
         if content:
             add_temp_message(user_id, "user", clean_message, persona, group_id)
             add_temp_message(user_id, "assistant", content, persona, group_id)

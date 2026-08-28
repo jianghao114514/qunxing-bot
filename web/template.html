@@ -614,6 +614,8 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
             <a href="#" @click.prevent="currentTab='dashboard'" class="nav-item" :class="navCls('dashboard')">◈ 仪表盘</a>
             <a href="#" @click.prevent="currentTab='users'" class="nav-item" :class="navCls('users')">◈ 用户管理</a>
             <a href="#" @click.prevent="currentTab='features'" class="nav-item" :class="navCls('features')">◈ 功能开关</a>
+            <a href="#" @click.prevent="currentTab='groups'" class="nav-item" :class="navCls('groups')">◈ 群聊配置</a>
+            <a href="#" @click.prevent="currentTab='update'" class="nav-item" :class="navCls('update')">◈ 检查更新</a>
             <a href="#" @click.prevent="currentTab='personas'" class="nav-item" :class="navCls('personas')">◈ 人设管理</a>
             <a href="#" @click.prevent="currentTab='config'" class="nav-item" :class="navCls('config')">◈ 配置修改</a>
             <a href="#" @click.prevent="currentTab='stats'" class="nav-item" :class="navCls('stats')">◈ 统计分析</a>
@@ -789,6 +791,67 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
                                 <button class="btn btn-sm btn-secondary menu-edit-btn" @click="openMenuEditor(name)">编辑菜单</button>
                             </div>
                         </div>
+                    </div></div>
+                </div>
+
+                <!-- 群聊差异化配置 -->
+                <div v-if="currentTab=='groups'">
+                    <div class="card glass"><div class="card-header">群聊差异化配置</div><div class="card-body">
+                        <div class="row mb-3 g-2">
+                            <div class="col-md-5">
+                                <label class="form-label">选择群</label>
+                                <select class="form-select" v-model="groupSelected" @change="selectGroup(groupSelected)">
+                                    <option value="">— 请选择群 —</option>
+                                    <option v-for="g in groups" :key="g.group_id" :value="g.group_id">{{ g.name || ('群 ' + g.group_id) }}（{{ g.group_id }}）</option>
+                                </select>
+                            </div>
+                            <div class="col-md-7 d-flex align-items-end gap-2">
+                                <button class="btn btn-sm btn-primary" @click="refreshGroups">刷新群列表(在线拉取)</button>
+                                <button class="btn btn-sm btn-secondary" @click="loadGroups">重新加载</button>
+                                <span class="text-muted small align-middle">{{ groupMsg }}</span>
+                            </div>
+                        </div>
+                        <div v-if="!groupSelected" class="text-muted py-4">机器人收到群消息时会自动登记该群；也可点「刷新群列表」从 QQ 在线拉取。</div>
+                        <div v-else>
+                            <div class="mb-3"><label class="form-label">群显示名称（可选）</label><input class="form-control" v-model="groupCfg.name" placeholder="留空则用群号显示"></div>
+                            <div class="card bg-transparent mb-3"><div class="card-header">该群功能开关（跟随全局 = 使用全局功能开关）</div><div class="card-body">
+                                <div v-for="(label, key) in groupCfg.feature_options" :key="key" class="d-flex align-items-center justify-content-between py-1">
+                                    <span>{{ label }}<span class="text-muted small ms-1">({{ key }})</span></span>
+                                    <select class="form-select" style="width:150px" v-model="groupCfg.features[key]">
+                                        <option value="inherit">跟随全局</option><option value="on">开启</option><option value="off">关闭</option>
+                                    </select>
+                                </div>
+                            </div></div>
+                            <div class="card bg-transparent mb-3"><div class="card-header">该群设置</div><div class="card-body">
+                                <div class="mb-2"><label class="form-label">进群欢迎语</label><input class="form-control" v-model="groupCfg.settings.welcome_message" placeholder="留空=用全局；支持 {qq}/{bonus}/{currency}"></div>
+                                <div class="mb-2"><label class="form-label">欢迎奖励星尘</label><input class="form-control" v-model="groupCfg.settings.welcome_bonus" placeholder="留空=用全局"></div>
+                                <div class="mb-2"><label class="form-label">机器人显示名</label><input class="form-control" v-model="groupCfg.settings.bot_display_name" placeholder="留空=用全局"></div>
+                                <div class="mb-2"><label class="form-label">本群 AI 模型</label><input class="form-control" v-model="groupCfg.settings.model_name" placeholder="留空=用全局默认模型"></div>
+                            </div></div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary" @click="saveGroupConfig">保存该群配置</button>
+                                <button class="btn btn-danger" @click="deleteGroupConfig">删除该群配置(恢复全局)</button>
+                            </div>
+                        </div>
+                    </div></div>
+                </div>
+
+                <!-- 检查更新 -->
+                <div v-if="currentTab=='update'">
+                    <div class="card glass"><div class="card-header">检查更新</div><div class="card-body">
+                        <p>当前版本：<span class="badge bg-primary">{{ updateInfo.current || status.version || 'dev' }}</span></p>
+                        <button class="btn btn-primary" @click="checkUpdate" :disabled="updateChecking">{{ updateChecking ? '检查中…' : '检查更新' }}</button>
+                        <div v-if="updateInfo.latest" class="mt-3">
+                            <p>
+                                最新版本：<span class="badge bg-success">{{ updateInfo.latest }}</span>
+                                <span v-if="updateInfo.new_available" class="badge bg-warning text-dark ms-1">有新版本！</span>
+                                <span v-else class="badge bg-secondary ms-1">已是最新</span>
+                            </p>
+                            <p v-if="updateInfo.name" class="mb-1">{{ updateInfo.name }}</p>
+                            <a v-if="updateInfo.url" :href="updateInfo.url" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">前往 GitHub（Release 页面）</a>
+                            <pre v-if="updateInfo.body" class="mt-3 p-2 rounded" style="white-space:pre-wrap">{{ updateInfo.body }}</pre>
+                        </div>
+                        <div v-if="updateInfo.error" class="text-danger mt-3">检查失败：{{ updateInfo.error }}</div>
                     </div></div>
                 </div>
 
@@ -1321,6 +1384,8 @@ new Vue({
         users: [], totalPages: 0, currentPage: 1, searchUser: '',
         showUserModal: false, userDetail: { cards: [], planet: null }, stats: { total_users: 0, signed_today: 0, total_stardust: 0, total_cards: 0 },
         features: {}, config: { email: {} }, personalities: {}, personasLoaded: false,
+        groups: [], groupSelected: '', groupCfg: { exists: false, name: '', features: {}, settings: {} }, groupMsg: '',
+        updateInfo: { current: '', latest: '', new_available: false, url: '', name: '', body: '', error: '' }, updateChecking: false,
         restarting: false, logs: [], logId: 0,
         stopping: false,
         stopped: false,
@@ -1630,6 +1695,74 @@ new Vue({
         showUserDetail(qq) { alert('功能开发中'); },
         loadFeatures() { axios.get('/api/features').then(res => this.features = res.data); },
         toggleFeature(name) { axios.post('/api/toggle', { feature: name, enabled: this.features[name] }).then(() => this.loadFeatures()); },
+        loadGroups() {
+            axios.get('/api/groups').then(res => {
+                this.groups = res.data.groups || [];
+                if (!this.groupSelected && this.groups.length) this.selectGroup(this.groups[0].group_id);
+            });
+        },
+        refreshGroups() {
+            axios.post('/api/groups/refresh').then(res => {
+                this.groups = res.data.groups || [];
+                this.groupMsg = res.data.message || '';
+                this.showToast(this.groupMsg || '已刷新群列表');
+                if (!this.groupSelected && this.groups.length) this.selectGroup(this.groups[0].group_id);
+            });
+        },
+        selectGroup(gid) { this.groupSelected = gid; this.loadGroupConfig(); },
+        loadGroupConfig() {
+            const gid = this.groupSelected;
+            if (!gid) { this.groupCfg = { exists: false, name: '', features: {}, settings: { welcome_message: '', welcome_bonus: '', bot_display_name: '', model_name: '' }, feature_options: {} }; return; }
+            axios.get('/api/group_config', { params: { group_id: gid } }).then(res => {
+                const cfg = res.data;
+                const feats = {};
+                for (const k of Object.keys(cfg.feature_options || {})) {
+                    feats[k] = (k in (cfg.features || {})) ? (cfg.features[k] ? 'on' : 'off') : 'inherit';
+                }
+                this.groupCfg = {
+                    exists: cfg.exists,
+                    name: cfg.name || '',
+                    features: feats,
+                    settings: Object.assign({ welcome_message: '', welcome_bonus: '', bot_display_name: '', model_name: '' }, cfg.settings || {}),
+                    feature_options: cfg.feature_options || {}
+                };
+            });
+        },
+        saveGroupConfig() {
+            if (!this.groupSelected) return;
+            const feats = {};
+            for (const [k, v] of Object.entries(this.groupCfg.features)) {
+                if (v !== 'inherit') feats[k] = (v === 'on');
+            }
+            axios.post('/api/group_config', {
+                group_id: this.groupSelected,
+                name: this.groupCfg.name,
+                features: feats,
+                settings: {
+                    welcome_message: this.groupCfg.settings.welcome_message,
+                    welcome_bonus: this.groupCfg.settings.welcome_bonus,
+                    bot_display_name: this.groupCfg.settings.bot_display_name,
+                    model_name: this.groupCfg.settings.model_name
+                }
+            }).then(() => { this.showToast('该群配置已保存'); this.loadGroups(); })
+              .catch(err => this.showToast('保存失败：' + ((err.response && err.response.data && err.response.data.error) || err.message), 8000));
+        },
+        deleteGroupConfig() {
+            const gid = this.groupSelected;
+            if (!gid) return;
+            this.openConfirm('删除群配置', '确定删除该群全部自定义配置？之后将完全跟随全局设置。', '删除', true, () => {
+                axios.post('/api/groups/delete', { group_id: gid }).then(() => { this.showToast('已删除该群配置'); this.loadGroups(); this.loadGroupConfig(); });
+            });
+        },
+        checkUpdate() {
+            this.updateChecking = true;
+            this.updateInfo = { current: this.status.version || '', latest: '', new_available: false, url: '', name: '', body: '', error: '' };
+            axios.get('/api/check_update').then(res => {
+                this.updateChecking = false;
+                this.updateInfo = res.data;
+                if (this.updateInfo.error) this.showToast('检查更新失败：' + this.updateInfo.error, 8000);
+            }).catch(err => { this.updateChecking = false; this.updateInfo.error = err.message; });
+        },
         loadConfig() { axios.get('/api/config').then(res => this.config = res.data); },
         saveConfig(key, val) {
             axios.post('/api/config', { key, value: val }).then(() => {

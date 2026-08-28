@@ -16,6 +16,9 @@ from datetime import datetime
 from flask import Flask, request, jsonify, send_file, render_template_string
 from flask_socketio import SocketIO, emit
 from core.config import CONFIG, FEATURE_SWITCHES, SYSTEM_CONFIG, PERSONALITIES, MEMORY_CONFIG, CUSTOM_MENU_TEXTS, get_all_providers, save_providers
+from core.group_config import (get_groups, register_group, get_group_config, set_group_config,
+                               delete_group_config, group_features, FEATURE_NAMES, is_newer)
+from core.version import app_version as _app_version_check
 from core.database import (
     get_cached_user, get_user_stardust, get_user_cards_count, get_last_signin,
     refresh_friend_list, is_friend, add_stardust, get_stardust, get_current_persona,
@@ -191,6 +194,95 @@ def api_status():
         'cpu_percent': cpu,
         'memory_percent': mem.percent
     })
+
+# ===== 群聊差异化配置 与 检查更新 =====
+@app.route('/api/groups')
+def api_groups():
+    items = []
+    for gid in get_groups():
+        cfg = get_group_config(gid) or {}
+        items.append({'group_id': gid, 'name': cfg.get('name') or '', 'has_config': bool(cfg)})
+    return jsonify({'groups': items})
+
+@app.route('/api/groups/refresh', methods=['POST'])
+def api_groups_refresh():
+    message = '已更新本地群列表'
+    fetched = []
+    try:
+        if hasattr(main_ws, 'request_action'):
+            resp = main_ws.request_action('get_group_list', timeout=8)
+            data = resp.get('data', []) if isinstance(resp, dict) else []
+            for g in data or []:
+                gid = str(g.get('group_id'))
+                name = g.get('group_name') or ''
+                if gid and gid.isdigit():
+                    register_group(gid, name)
+                    fetched.append(gid)
+            if fetched:
+                message = f'已拉取并登记 {len(fetched)} 个群'
+    except Exception as e:
+        print(f"刷新群列表失败: {e}")
+    items = []
+    for gid in get_groups():
+        cfg = get_group_config(gid) or {}
+        items.append({'group_id': gid, 'name': cfg.get('name') or '', 'has_config': bool(cfg)})
+    return jsonify({'success': True, 'message': message, 'groups': items})
+
+@app.route('/api/group_config')
+def api_group_config_get():
+    gid = str(request.args.get('group_id') or '')
+    cfg = get_group_config(gid) or {}
+    return jsonify({
+        'group_id': gid,
+        'exists': bool(cfg),
+        'name': cfg.get('name') or '',
+        'features': cfg.get('features') or {},
+        'settings': cfg.get('settings') or {},
+        'feature_options': FEATURE_NAMES,
+    })
+
+@app.route('/api/group_config', methods=['POST'])
+def api_group_config_post():
+    data = request.json or {}
+    gid = str(data.get('group_id') or '').strip()
+    if not gid:
+        return jsonify({'error': '缺少群号'}), 400
+    if not gid.isdigit():
+        return jsonify({'error': '群号必须为数字'}), 400
+    features = data.get('features') or {}
+    features = {k: bool(v) for k, v in features.items() if k in FEATURE_NAMES}
+    allowed = {'welcome_message', 'welcome_bonus', 'bot_display_name', 'model_name'}
+    settings = data.get('settings') or {}
+    settings = {k: ('' if v is None else str(v)) for k, v in settings.items() if k in allowed}
+    cfg = {'name': str(data.get('name') or ''), 'features': features, 'settings': settings}
+    set_group_config(gid, cfg)
+    return jsonify({'success': True})
+
+@app.route('/api/groups/delete', methods=['POST'])
+def api_groups_delete():
+    data = request.json or {}
+    gid = str(data.get('group_id') or '').strip()
+    if not gid:
+        return jsonify({'error': '缺少群号'}), 400
+    ok = delete_group_config(gid)
+    return jsonify({'success': ok})
+
+@app.route('/api/check_update')
+def api_check_update():
+    current = app_version()
+    try:
+        req = urllib.request.Request(
+            'https://api.github.com/repos/jianghao114514/qunxing-bot/releases/latest',
+            headers={'User-Agent': 'qunxing-bot'})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        latest = (data.get('tag_name') or '').lstrip('v')
+        new_available = is_newer(latest, current)
+        return jsonify({'current': current, 'latest': latest, 'new_available': new_available,
+                        'name': data.get('name') or '', 'url': data.get('html_url') or '',
+                        'body': (data.get('body') or '')[:2000]})
+    except Exception as e:
+        return jsonify({'current': current, 'latest': '', 'new_available': False, 'error': str(e)})
 
 @app.route('/api/users')
 def api_users():

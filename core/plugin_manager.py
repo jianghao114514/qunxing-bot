@@ -4,6 +4,7 @@ import sys
 import importlib
 import inspect
 from plugins.base import BasePlugin
+from core.group_config import feature_enabled, plugin_feature_key
 
 class PluginManager:
     def __init__(self, bot):
@@ -69,6 +70,9 @@ class PluginManager:
     def process_message(self, msg_type, group_id, user_qq, nickname, raw_message, clean_message, is_at_bot):
         for plugin in self.plugins:
             if not plugin.enabled:
+                continue
+            fkey = plugin_feature_key(plugin.name)
+            if fkey is not None and not feature_enabled(group_id, fkey):
                 continue
             try:
                 if plugin.match(msg_type, group_id, user_qq, raw_message, clean_message, is_at_bot):

@@ -59,9 +59,16 @@ def call_ai_with_fallback(prompt, system_override=None):
                 {"role": "user", "content": prompt}]
     return _call_providers(providers, messages)
 
-def call_with_messages(messages):
-    """直接发送完整消息列表给AI"""
+def call_with_messages(messages, model_override=None):
+    """直接发送完整消息列表给AI。model_override：优先使用模型名匹配的提供商。"""
     providers = get_enabled_providers()
+    if not providers:
+        return None
+    if model_override:
+        matched = [p for p in providers if p.get("model_name") == model_override]
+        if matched:
+            return _call_providers(matched, messages)
+        print(f"群指定模型「{model_override}」未在可用提供商中找到，回退默认")
     return _call_providers(providers, messages)
 
 def _call_providers(providers, messages):

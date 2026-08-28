@@ -366,6 +366,8 @@ def api_toggle():
     rev = {'签到':'signin','抽卡':'draw','塔罗':'tarot','AI聊天':'aichat','天气':'weather','笑话':'joke','疯狂星期四':'kfc','每日emo':'emo','随机美图':'random_img','每日老婆':'random_waifu','AI人设':'persona','问题反馈':'feedback','赠送碎片':'gift','背包查询':'query','星球养成':'planet','星空名片':'profile','B站监控':'bilibili'}
     feat = rev.get(cn, cn)
     FEATURE_SWITCHES[feat] = data.get('enabled')
+    if feat == 'bilibili':
+        CONFIG["bilibili_enabled"] = bool(data.get('enabled'))
     from core.config import save_config
     save_config()
     return jsonify({'success': True})
@@ -1078,6 +1080,7 @@ def api_bilibili_config():
     value = request.json.get('value')
     if key == 'enabled':
         CONFIG["bilibili_enabled"] = str(value).strip().lower() in ('true', '1', 'yes', 'on')
+        FEATURE_SWITCHES["bilibili"] = CONFIG["bilibili_enabled"]
     elif key == 'alert_group':
         CONFIG["bilibili_alert_group"] = str(value)
     elif key == 'check_interval':

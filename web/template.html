@@ -1701,7 +1701,7 @@ new Vue({
         },
         showUserDetail(qq) { this.showToast('功能开发中'); },
         loadFeatures() { axios.get('/api/features').then(res => this.features = res.data); },
-        toggleFeature(name) { axios.post('/api/toggle', { feature: name, enabled: this.features[name] }).then(() => this.loadFeatures()); },
+        toggleFeature(name) { axios.post('/api/toggle', { feature: name, enabled: this.features[name] }).then(() => { this.loadFeatures(); if (name === 'B站监控') this.loadBili(); }); },
         loadGroups() {
             axios.get('/api/groups').then(res => {
                 this.groups = res.data.groups || [];
@@ -1903,7 +1903,7 @@ new Vue({
             axios.get('/api/bilibili/status').then(res => { this.bili = res.data; }).catch(() => {});
         },
         biliSaveConfig(key, val) {
-            axios.post('/api/bilibili/config', { key, value: val }).then(() => { this.loadBili(); this.showToast('已保存'); }).catch(() => this.showToast('保存失败'));
+            axios.post('/api/bilibili/config', { key, value: val }).then(() => { this.loadBili(); if (key === 'enabled') this.loadFeatures(); this.showToast('已保存'); }).catch(() => this.showToast('保存失败'));
         },
         biliSearch() {
             const kw = this.biliSearchKw.trim();

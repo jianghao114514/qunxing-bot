@@ -381,6 +381,12 @@ body.perf-fast .guide-card, body.perf-fast .guide-icon, body.perf-fast .guide-or
 .modal-footer { border-top: 1px solid rgba(255,255,255,.1); }
 .modal.show .modal-dialog { animation: modalIn .3s cubic-bezier(.2,.9,.3,1.2); }
 @keyframes modalIn { from { opacity: 0; transform: translateY(26px) scale(.97); } to { opacity: 1; transform: none; } }
+body.theme-light .modal-content { background: linear-gradient(170deg,#ffffff,#eef2fb); color:#3a425c; }
+body.theme-light .modal-header { border-bottom-color:#dfe5f0; }
+body.theme-light .modal-footer { border-top-color:#dfe5f0; }
+body.theme-light .modal .form-control, body.theme-light .modal .form-select { background:#fff; border-color:#dfe5f0; color:#3a425c; }
+.update-body { background: rgba(0,0,0,.18); color: var(--text); border: 1px solid var(--glass-border); border-radius: 8px; }
+body.theme-light .update-body { background:#fff; color:#3a425c; }
 
 /* 手风琴 v2 */
 .accordion-button { letter-spacing: .5px; font-weight: 600; }
@@ -826,7 +832,7 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
                                 <div class="mb-2"><label class="form-label">进群欢迎语</label><input class="form-control" v-model="groupCfg.settings.welcome_message" placeholder="留空=用全局；支持 {qq}/{bonus}/{currency}"></div>
                                 <div class="mb-2"><label class="form-label">欢迎奖励星尘</label><input class="form-control" v-model="groupCfg.settings.welcome_bonus" placeholder="留空=用全局"></div>
                                 <div class="mb-2"><label class="form-label">机器人显示名</label><input class="form-control" v-model="groupCfg.settings.bot_display_name" placeholder="留空=用全局"></div>
-                                <div class="mb-2"><label class="form-label">本群 AI 模型</label><input class="form-control" v-model="groupCfg.settings.model_name" placeholder="留空=用全局默认模型"></div>
+                                <div class="mb-2"><label class="form-label">本群优先 AI 模型</label><input class="form-control" v-model="groupCfg.settings.model_name" placeholder="留空=用全局默认；填写后优先用该 model_name 匹配的提供商"></div>
                             </div></div>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-primary" @click="saveGroupConfig">保存该群配置</button>
@@ -849,7 +855,7 @@ body.theme-light :focus-visible { outline-color: rgba(93,108,255,.55); }
                             </p>
                             <p v-if="updateInfo.name" class="mb-1">{{ updateInfo.name }}</p>
                             <a v-if="updateInfo.url" :href="updateInfo.url" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">前往 GitHub（Release 页面）</a>
-                            <pre v-if="updateInfo.body" class="mt-3 p-2 rounded" style="white-space:pre-wrap">{{ updateInfo.body }}</pre>
+                            <pre v-if="updateInfo.body" class="mt-3 p-2 rounded update-body" style="white-space:pre-wrap">{{ updateInfo.body }}</pre>
                         </div>
                         <div v-if="updateInfo.error" class="text-danger mt-3">检查失败：{{ updateInfo.error }}</div>
                     </div></div>
@@ -1692,7 +1698,7 @@ new Vue({
             this.currentPage = page;
             axios.get('/api/users', { params: { page, search: this.searchUser } }).then(res => { this.users = res.data.users; this.totalPages = Math.ceil(res.data.total / res.data.per_page); });
         },
-        showUserDetail(qq) { alert('功能开发中'); },
+        showUserDetail(qq) { this.showToast('功能开发中'); },
         loadFeatures() { axios.get('/api/features').then(res => this.features = res.data); },
         toggleFeature(name) { axios.post('/api/toggle', { feature: name, enabled: this.features[name] }).then(() => this.loadFeatures()); },
         loadGroups() {
@@ -1810,8 +1816,10 @@ new Vue({
         },
         _openNapcatPage() {
             const n = this.napcat;
-            if (!n.ready || !n.url) { this.showToast('NapCat WebUI 尚未就绪，请稍候再试'); return; }
-            window.open(n.url, '_blank');
+            const port = n.port || 6099;
+            const url = n.url || ('http://127.0.0.1:' + port + '/webui');
+            window.open(url, '_blank');
+            if (n.token) this.copyText(n.token);
         },
         napcatDeployAsk(mode) {
             if (mode === 'manual') {
@@ -1849,16 +1857,12 @@ new Vue({
                     this.waitNapcatReady(() => { this.napcatBusy = false; this._openNapcatPage(); });
                     return;
                 }
-                this.showToast('NapCat 启动中，等待登录完成...');
+                this.showToast('NapCat 启动中，稍后会尝试打开 WebUI，请在弹出的页面扫码登录...');
                 this.waitNapcatReady(() => {
                     this.napcatBusy = false;
-                    if (this.napcat.ready) {
-                        if (this.napcat.token) this.copyText(this.napcat.token);
-                        this._openNapcatPage();
-                    } else {
-                        this.showToast('NapCat 未在预期时间内就绪，请查看启动器控制台或检查登录');
-                    }
-                });
+                    if (this.napcat.ready && this.napcat.token) this.copyText(this.napcat.token);
+                    this._openNapcatPage();
+                }, 30);
             }).catch(err => {
                 this.napcatBusy = false;
                 this.showToast('启动请求失败：' + (err.response && err.response.data ? (err.response.data.error || '未知错误') : err.message));
@@ -1885,21 +1889,12 @@ new Vue({
         openNapcat() {
             axios.get('/api/napcat/status').then(res => {
                 this.napcat = res.data;
-                if (res.data.ready) {
-                    if (res.data.token) this.copyText(res.data.token);
-                    this._openNapcatPage();
-                } else if (res.data.running) {
-                    this.showToast('NapCat 进程运行中，WebUI 尚未就绪，正在等待...');
-                    this.waitNapcatReady(() => {
-                        if (this.napcat.ready) {
-                            if (this.napcat.token) this.copyText(this.napcat.token);
-                            this._openNapcatPage();
-                        } else {
-                            this.showToast('WebUI 等待超时，请检查 NapCat 登录状态');
-                        }
-                    });
-                } else {
-                    this.openConfirm('启动 NapCat？', 'NapCat 尚未启动。是否立即启动并登录机器人？', '启动', false, () => this.startNapcat());
+                if (res.data.token) this.copyText(res.data.token);
+                this._openNapcatPage();
+                if (!res.data.running) {
+                    this.showToast('NapCat 未运行，已在浏览器尝试打开；若打不开请先启动 NapCat');
+                } else if (!res.data.ready) {
+                    this.showToast('已尝试打开 NapCat WebUI 页面；若未加载，请确认 NapCat 已启动/扫码登录后刷新');
                 }
             }).catch(() => this.showToast('获取 NapCat 状态失败'));
         },
@@ -1995,11 +1990,11 @@ new Vue({
             });
         },
         savePersonalities() {
-            if (!this.personasLoaded) { alert('人设数据尚未加载完成，已取消保存'); return; }
-            if (!this.personalities || Object.keys(this.personalities).length === 0) { alert('人设列表为空，已取消保存（防止误清空）'); return; }
+            if (!this.personasLoaded) { this.showToast('人设数据尚未加载完成，已取消保存'); return; }
+            if (!this.personalities || Object.keys(this.personalities).length === 0) { this.showToast('人设列表为空，已取消保存（防止误清空）'); return; }
             axios.post('/api/personalities', { personalities: this.personalities }).then(() => this.loadPersonalities());
         },
-        addPersona() { if (!this.newPersonaName || !this.newPersonaPrompt) { alert('请填写名称和提示词'); return; } axios.post('/api/add_persona', { name: this.newPersonaName, prompt: this.newPersonaPrompt, type: this.newPersonaType }).then(() => { this.loadPersonalities(); this.newPersonaName = ''; this.newPersonaPrompt = ''; this.newPersonaType = 'normal'; }); },
+        addPersona() { if (!this.newPersonaName || !this.newPersonaPrompt) { this.showToast('请填写名称和提示词'); return; } axios.post('/api/add_persona', { name: this.newPersonaName, prompt: this.newPersonaPrompt, type: this.newPersonaType }).then(() => { this.loadPersonalities(); this.newPersonaName = ''; this.newPersonaPrompt = ''; this.newPersonaType = 'normal'; }); },
         loadStats() {
             axios.get('/api/stats').then(res => {
                 this.stats = res.data;
@@ -2061,38 +2056,38 @@ new Vue({
             axios.get('/api/user/' + qq).then(res => {
                 this.userDetail = res.data;
                 this.showUserModal = true;
-            }).catch(err => alert('获取用户详情失败'));
+            }).catch(err => this.showToast('获取用户详情失败'));
         },
         saveUserStardust() {
             const qq = this.userDetail.qq;
             axios.post('/api/user/' + qq + '/stardust', { stardust: this.userDetail.stardust }).then(res => {
                 this.userDetail.stardust = res.data.stardust;
                 this.loadUsers(this.currentPage);
-                alert('星尘已更新');
-            }).catch(err => alert('保存失败'));
+                this.showToast('星尘已更新');
+            }).catch(err => this.showToast('保存失败'));
         },
         deleteUser(qq) {
             this.openConfirm('删除用户', '确定删除该用户的全部数据吗？\n（星尘/卡牌/星球/记忆）此操作不可恢复！', '删除', true, () => {
                 axios.post('/api/user/' + qq + '/delete').then(() => {
                     this.showUserModal = false;
                     this.loadUsers(1);
-                    alert('已删除');
-                }).catch(err => alert('删除失败'));
+                    this.showToast('已删除');
+                }).catch(err => this.showToast('删除失败'));
             });
         },
         loadApiProviders() { axios.get('/api/providers').then(res => this.apiProviders = res.data); },
         updatePriority(api) { axios.post('/api/update_priority', { id: api.id, priority: api.priority }).then(() => this.loadApiProviders()); },
         toggleApi(api) { axios.post('/api/toggle_api', { id: api.id, enabled: !api.enabled }).then(() => this.loadApiProviders()); },
-        testApi(api) { axios.post('/api/test_api', { id: api.id }).then(res => alert(res.data.message)); },
+        testApi(api) { axios.post('/api/test_api', { id: api.id }).then(res => this.showToast(res.data.message)); },
         deleteApi(api) { this.openConfirm('删除API接口', '确定删除「' + (api.name || '') + '」吗？', '删除', true, () => axios.post('/api/delete_api', { id: api.id }).then(() => this.loadApiProviders())); },
         editApi(api) {
             axios.get('/api/provider/' + api.id).then(res => {
                 this.editApiData = res.data;
                 this.showEditModal = true;
-            }).catch(err => alert('获取详情失败'));
+            }).catch(err => this.showToast('获取详情失败'));
         },
         saveEditApi() {
-            axios.post('/api/update_provider', this.editApiData).then(() => { this.showEditModal = false; this.loadApiProviders(); }).catch(err => alert('保存失败'));
+            axios.post('/api/update_provider', this.editApiData).then(() => { this.showEditModal = false; this.loadApiProviders(); }).catch(err => this.showToast('保存失败'));
         },
         showAddApiModal() { this.newApi = { name: '', api_key: '', base_url: '', model_name: '', priority: 100, max_requests_per_day: 0, is_public_welfare: false, provider_name: '', admin_url: '' }; this.showAddModal = true; },
         addApi() { axios.post('/api/add_provider', this.newApi).then(() => { this.showAddModal = false; this.loadApiProviders(); }); },
@@ -2104,12 +2099,12 @@ new Vue({
             if (this.editingFeatureKey) {
                 this.editingMenuText = this.menuTexts[this.editingFeatureKey] || '';
                 this.showMenuEditor = true;
-            } else { alert('无法识别功能'); }
+            } else { this.showToast('无法识别功能'); }
         },
         saveMenuText() {
             axios.post('/api/update_menu_text', { feature: this.editingFeatureKey, text: this.editingMenuText }).then(() => {
-                this.showMenuEditor = false; this.loadMenuTexts(); alert('菜单文本已更新');
-            }).catch(err => alert('保存失败'));
+                this.showMenuEditor = false; this.loadMenuTexts(); this.showToast('菜单文本已更新');
+            }).catch(err => this.showToast('保存失败'));
         },
         loadYandereWhitelist() {
             axios.get('/api/yandere_whitelist').then(res => this.yandereWhitelist = res.data).catch(err => console.error);
@@ -2118,15 +2113,15 @@ new Vue({
             if (!this.newWhitelistQQ) return;
             axios.post('/api/yandere_whitelist/add', { qq: this.newWhitelistQQ }).then(res => {
                 if (res.data.success) { this.loadYandereWhitelist(); this.newWhitelistQQ = ''; }
-                else alert(res.data.error);
-            }).catch(err => alert('添加失败'));
+                else this.showToast(res.data.error);
+            }).catch(err => this.showToast('添加失败'));
         },
         removeWhitelistQQ(qq) {
             this.openConfirm('移出白名单', '确定将 ' + qq + ' 移出白名单吗？', '移出', true, () => {
                 axios.post('/api/yandere_whitelist/remove', { qq: qq }).then(res => {
                     if (res.data.success) this.loadYandereWhitelist();
-                    else alert(res.data.error);
-                }).catch(err => alert('移除失败'));
+                    else this.showToast(res.data.error);
+                }).catch(err => this.showToast('移除失败'));
             });
         }
     },

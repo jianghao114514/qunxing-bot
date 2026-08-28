@@ -973,12 +973,15 @@ def api_napcat_status():
     port = info["port"] if info else None
     ready = _napcat_webui_ready(port) if port else False
     exe = _napcat_exe_cached()
+    url = info["url"] if info else None
+    if not url and (running or exe):
+        url = "http://127.0.0.1:{}/webui".format(port or 6099)
     return jsonify({
         'running': running,
         'ready': ready,
         'port': port,
         'token': info["token"] if info else "",
-        'url': info["url"] if info else None,
+        'url': url,
         'exe': exe or ""
     })
 

@@ -2,6 +2,7 @@
 import time
 from plugins.base import BasePlugin
 from core.config import CONFIG, FEATURE_SWITCHES, CUSTOM_MENU_TEXTS
+from core.group_config import feature_enabled
 from core.menu_image import build_menu_image
 from core.database import get_stardust, get_cards_count, get_last_signin, get_current_persona, get_planet
 
@@ -29,7 +30,9 @@ class MenuPlugin(BasePlugin):
         if planet:
             user_stats["planet"] = (planet.get("name") or "?"), planet.get("level", 1)
         try:
-            img_b64 = build_menu_image(FEATURE_SWITCHES, CUSTOM_MENU_TEXTS, show_admin, user_stats)
+            # 按群生效：某群关闭的功能不出现在该群菜单图里
+            features_for_menu = {k: feature_enabled(group_id, k) for k in FEATURE_SWITCHES}
+            img_b64 = build_menu_image(features_for_menu, CUSTOM_MENU_TEXTS, show_admin, user_stats)
             reply = f"[CQ:image,file=base64://{img_b64}]"
         except Exception as e:
             print(f"菜单图片生成失败: {e}")

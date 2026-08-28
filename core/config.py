@@ -170,6 +170,18 @@ def load_config():
     SYSTEM_CONFIG.clear()
     SYSTEM_CONFIG.update(data.get("system_config", {}))
     changed = False
+    # 功能开关回填：旧配置缺失/为空时补默认并写回，避免面板功能开关页为空
+    if not FEATURE_SWITCHES:
+        default_features = {
+            "signin": True, "draw": True, "tarot": True, "aichat": True,
+            "weather": True, "joke": True, "kfc": True, "emo": True,
+            "random_img": True, "random_waifu": True, "persona": True,
+            "feedback": True, "gift": True, "query": True, "planet": True,
+            "profile": True,
+        }
+        FEATURE_SWITCHES.update(default_features)
+        data.setdefault("feature_switches", {}).update(default_features)
+        changed = True
     # 新星球键回写：旧 config.json 没有的 system_config 键用默认值补全并写盘
     planet_defaults = {
         "planet_energy_decay": 4, "planet_event_enabled": True,

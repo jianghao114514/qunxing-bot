@@ -9,7 +9,10 @@ from core.config import CONFIG, SYSTEM_CONFIG
 from core.database import get_stardust, add_stardust, get_planet, update_planet, is_friend, get_nickname, list_planets
 from core.planet_image import build_planet_card, STAGE_NAMES, STAGE_ICONS
 from core.planet_mode import (TEMPERAMENTS, BOND_TITLES, bond_title, bond_mult,
-                              temperament_mult, pending_estimate)
+                              temperament_mult, pending_estimate,
+                              random_rarity, rarity_mult, rarity_bond_mult,
+                              check_achievements, reset_daily, mark_daily, daily_count,
+                              daily_done, DAILY_TASK_DEFS, ACHIEVEMENT_DEFS, today_str, RARITIES)
 
 STAGE_UNLOCKS = [1, 3, 5, 8, 10]   # 各形态对应解锁等级
 
@@ -79,6 +82,10 @@ EVENT_AURORA_TEXTS = [
     "🌌 一抹极光掠过天际！「{name}」被温柔的光芒笼罩，能量大幅回升，亲密度上升！",
     "🌌 星之子发来祝福——极光涤荡了「{name}」的疲惫，能量+40，亲密度+15！",
 ]
+EVENT_GEYSER_TEXTS = [
+    "⛲ 一座星尘喷泉在「{name}」脚下喷涌而出！星尘四溅，你收获颇丰：+{amount} 碎片！",
+    "⛲ 大地深处涌出澄澈的星尘之泉，「{name}」沐浴其中，你捡到了 {amount} 碎片！",
+]
 SOLD_TEXTS = [
     "「{name}」被你送上了商人的飞船，{price} 碎片到账。它回望你一眼，化作一颗新的星球坠入你的怀中！",
     "交易达成！{price} 碎片到手。旧主人走了，但一颗全新的星球正等着你取名字……",
@@ -88,7 +95,7 @@ EXPIRED_TEXTS = [
     "「{name}」歪着脑袋告诉你：商人早就走了，报价过期啦。",
 ]
 
-EVENT_NAMES = ["meteor", "whale", "merchant", "aurora"]
+EVENT_NAMES = ["meteor", "whale", "merchant", "aurora", "geyser"]
 
 
 def _roll_event(planet, uid, now):
@@ -117,6 +124,11 @@ def _roll_event(planet, uid, now):
         planet["energy"] = min(max_energy, planet.get("energy", 0) + 40)
         planet["bond"] = planet.get("bond", 0) + _cfg("planet_bond_per_aurora", 15)
         return [random.choice(EVENT_AURORA_TEXTS).format(name=planet["name"])]
+    if ev == "geyser":
+        amount = planet["level"] * random.randint(20, 60)
+        add_stardust(uid, amount)
+        planet["bond"] = planet.get("bond", 0) + _cfg("planet_bond_per_geyser", 18)
+        return [random.choice(EVENT_GEYSER_TEXTS).format(name=planet["name"], amount=amount)]
     # merchant
     price = max(100, int(planet["stardust_spent"] * 1.5))
     planet["merchant_offer"] = price
@@ -142,6 +154,8 @@ def _new_planet():
         "last_care": 0, "last_collect": now, "streak": 0, "stardust_spent": 0,
         "last_energy_time": now, "last_event": 0, "collect_boost": 1, "merchant_offer": 0,
         "merchant_expire": 0, "bond": 0, "temperament": random.choice(list(TEMPERAMENTS)),
+        "rarity": random_rarity(), "achievements": [],
+        "daily": {"date": today_str(), "progress": {}},
     }
 
 
@@ -177,6 +191,40 @@ def _texts_for_energy(energy):
     return CARE_TEXTS_LOW
 
 
+def _apply_daily(planet, uid, key):
+    """标记每日任务完成；若为新完成则给奖励并返回提示文字，否则返回空串。"""
+    if not mark_daily(planet, key):
+        return ""
+    bonus = _cfg("planet_daily_bonus", 10)
+    bond = _cfg("planet_daily_bond", 5)
+    add_stardust(uid, bonus)
+    planet["bond"] = planet.get("bond", 0) + bond
+    task_name = next((n for k, n, _ in DAILY_TASK_DEFS if k == key), key)
+    return f" 每日任务「{task_name}」完成：+{bonus} 碎片, 亲密度+{bond}！"
+
+
+def _achievement_text(planet):
+    ach = planet.get("achievements", []) or []
+    total = len(ACHIEVEMENT_DEFS)
+    lines = ["🏅 星球成就（%d/%d）" % (len(ach), total)]
+    for key, name, desc, field, thresh in ACHIEVEMENT_DEFS:
+        done = "✅" if key in ach else "⬜"
+        val = planet.get("stardust_spent", 0) if field == "spent" else planet.get(field, 0)
+        lines.append("%s %s · %s（%s/%s）" % (done, name, desc, val, thresh))
+    return "\n".join(lines)
+
+
+def _daily_text(planet):
+    reset_daily(planet)
+    progress = planet["daily"].get("progress", {})
+    lines = ["📅 今日星球任务"]
+    for key, name, desc in DAILY_TASK_DEFS:
+        done = progress.get(key)
+        lines.append(("%s %s · %s" % ("✅" if done else "⬜", name, desc)))
+    lines.append("全部完成会额外奖励星尘与亲密度～")
+    return "\n".join(lines)
+
+
 def _status_text(planet):
     now = time.time()
     max_lv = _cfg("planet_max_level", 10)
@@ -195,12 +243,14 @@ def _status_text(planet):
     else:
         energy_face = "元气满满"
     pending = pending_estimate(planet, now)
+    rarity = planet.get("rarity", "普通")
     lines = [
         f"✦ 「{name}」的星球 · {STAGE_ICONS[planet['stage'] - 1]} {stage}形态 · Lv.{level}",
+        f"  稀有度 {rarity}（{RARITIES.get(rarity, {}).get('desc', '')}）",
         f"  {exp_line} · 能量 {energy}/{_cfg('planet_max_energy', 100)}（{energy_face}）",
         f"  性格 {planet.get('temperament', '活泼')}（{TEMPERAMENTS.get(planet.get('temperament', '活泼'), {}).get('desc', '')}）",
-        f"  亲密度 {planet.get('bond', 0)} · {bond_title(planet.get('bond', 0))}",
-        f"  连续照料 {planet['streak']} 天 · 累计投入 {planet['stardust_spent']} 碎片",
+        f"  亲密度 {planet.get('bond', 0)} · {bond_title(planet.get('bond', 0))} · 成就 {len(planet.get('achievements', []) or [])} 个",
+        f"  连续照料 {planet['streak']} 天 · 累计投入 {planet['stardust_spent']} 碎片 · 今日任务 {daily_count(planet)}/{len(DAILY_TASK_DEFS)}",
         f"  可收取产出约 {pending} 碎片",
     ]
     if planet.get("collect_boost", 1) > 1:
@@ -213,18 +263,21 @@ def _status_text(planet):
 def _manual_text():
     lines = [
         "🌟 星球养成 · 玩法手册",
-        "「领养星球」：获得一颗专属星球，它会随机拥有一种性格（影响产出/体验）",
+        "「领养星球」：获得一颗专属星球，随机固有「性格 + 稀有度」，影响产出与成长",
         "「我的星球 / 星球卡片」：查看状态，并可能触发随机事件",
         "「照料星球 [次数] / 喂星球」：消耗星尘碎片换经验与能量，能量<30 时经验×1.5",
-        "「收取产出 / 星球产出」：按时间累积星尘，可收取",
+        "「收取产出 / 星球产出」：按时间累积星尘，可收取（稀有度/亲密度/成就加成）",
         "「星球改名 名字」：花碎片给星球改名",
         "「拜访星球 @好友 / 帮忙照料 @好友」：好友互动，双方都有奖励",
-        "「卖掉星球」：商人出现时出售（限时），赚钱后领养一颗新的",
+        "「卖掉星球」：商人出现时出售（限时），赚钱后领养一颗新的（稀有度重新随机）",
+        "「星球成就 / 星球图鉴」：查看已解锁成就与进度",
+        "「星球任务 / 每日任务」：查看今日活跃任务",
         "「星球排行榜」：看看谁的星球被你养得最亲密",
         "「星球手册」：再次查看本说明",
         "",
-        "✨ 亲密度与称号：",
-        "   喂养/收取/帮忙照料/事件都会积累亲密度，亲密度越高产出越高，并解锁称号：",
+        "✨ 稀有度：普通 < 精良 < 稀有 < 史诗 < 传说（产出/亲密度越高）",
+        "✨ 成就：达成条件自动解锁，每个成就 +1% 产出（上限 +30%）",
+        "✨ 亲密度：喂养/收取/帮忙照料/事件都会积累，越高产出越高，并解锁称号：",
         "   " + " / ".join(f"{n}({v})" for v, n in BOND_TITLES),
         "",
         "🎭 星球性格：",
@@ -232,7 +285,7 @@ def _manual_text():
     for name, info in TEMPERAMENTS.items():
         lines.append(f"   · {name}：{info['desc']}")
     lines.append("")
-    lines.append("💡 小提示：多喂、多聊天、常回来看看，星球会越来越亲近你哦～")
+    lines.append("💡 小提示：多喂、多聊天、每天做做任务，稀有星球会越来越多哦～")
     return "\n".join(lines)
 
 
@@ -251,7 +304,8 @@ def _rank(msg_type, group_id, user_qq):
     for i, (uid, p) in enumerate(top, 1):
         stage = STAGE_NAMES[p["stage"] - 1] if p["stage"] <= len(STAGE_NAMES) else STAGE_NAMES[-1]
         nick = get_nickname(uid) or uid
-        lines.append(f"{i}. 「{p.get('name','?')}」· {nick} · Lv.{p.get('level',1)} {stage} · "
+        rarity = p.get("rarity", "普通")
+        lines.append(f"{i}. 「{p.get('name','?')}」· {nick} · {rarity} · Lv.{p.get('level',1)} {stage} · "
                      f"亲密 {p.get('bond',0)} · {bond_title(p.get('bond',0))}")
     return "\n".join(lines)
 
@@ -277,6 +331,18 @@ def _parse_target(raw_message, clean_message, bot_qq):
     return None
 
 
+def _unlock_achievements(planet):
+    """发现新成就即写入 achievements，并返回提示列表。"""
+    if not isinstance(planet.get("achievements"), list):
+        planet["achievements"] = []
+    news = check_achievements(planet)
+    msgs = []
+    for a in news:
+        planet["achievements"].append(a["key"])
+        msgs.append(f"🏅 解锁成就【{a['name']}】！{a['desc']}")
+    return msgs
+
+
 class PlanetPlugin(BasePlugin):
     name = "planet"
     priority = 80
@@ -286,7 +352,8 @@ class PlanetPlugin(BasePlugin):
             return False
         return clean_message.startswith(("领养星球", "我的星球", "星球卡片", "拜访星球", "帮忙照料",
                                          "照料星球", "喂星球", "收取产出", "星球产出", "星球改名", "卖掉星球",
-                                         "星球手册", "星球帮助", "星球玩法", "星球榜单", "星球排行榜"))
+                                         "星球手册", "星球帮助", "星球玩法", "星球榜单", "星球排行榜",
+                                         "星球成就", "星球图鉴", "星球任务", "每日任务"))
 
     def handle(self, msg_type, group_id, user_qq, nickname, raw_message, clean_message, is_at_bot):
         uid = str(user_qq)
@@ -308,6 +375,28 @@ class PlanetPlugin(BasePlugin):
                                     at_user=(msg_type == 'group'))
             return True
 
+        if clean_message.startswith(("星球成就", "星球图鉴")):
+            if planet is None:
+                self.bot.send_reply(msg_type, group_id, user_qq, "你还没有星球，先发送「领养星球」吧",
+                                    at_user=(msg_type == 'group'))
+                return True
+            reset_daily(planet)
+            update_planet(uid, planet)
+            self.bot.send_reply(msg_type, group_id, user_qq, _achievement_text(planet),
+                                at_user=(msg_type == 'group'))
+            return True
+
+        if clean_message.startswith(("星球任务", "每日任务")):
+            if planet is None:
+                self.bot.send_reply(msg_type, group_id, user_qq, "你还没有星球，先发送「领养星球」吧",
+                                    at_user=(msg_type == 'group'))
+                return True
+            reset_daily(planet)
+            update_planet(uid, planet)
+            self.bot.send_reply(msg_type, group_id, user_qq, _daily_text(planet),
+                                at_user=(msg_type == 'group'))
+            return True
+
         if clean_message.startswith("领养星球") or clean_message.startswith("我的星球") or clean_message.startswith("星球卡片"):
             if planet is None:
                 planet = _new_planet()
@@ -315,6 +404,7 @@ class PlanetPlugin(BasePlugin):
                 self.bot.send_reply(msg_type, group_id, user_qq,
                                     f"你在一片星尘中睁开了眼，一颗小小的【{planet['name']}】钻进了你的怀里！\n"
                                     f"性格：{planet['temperament']}（{TEMPERAMENTS.get(planet['temperament'])['desc']}）\n"
+                                    f"稀有度：{planet['rarity']}（{RARITIES.get(planet['rarity'], {}).get('desc', '')}）\n"
                                     f"{_status_text(planet)}\n可用「照料星球」喂它星尘，用「收取产出」收集碎片。「星球手册」看全部玩法。",
                                     at_user=(msg_type == 'group'))
                 self._send_card(msg_type, group_id, user_qq, planet)
@@ -399,6 +489,8 @@ class PlanetPlugin(BasePlugin):
             planet["bond"] = planet.get("bond", 0) + bond_gained
             planet["last_collect"] = now
             planet["collect_boost"] = 1
+            daily_extra = _apply_daily(planet, uid, "collect")
+            ach_msgs = _unlock_achievements(planet)
             update_planet(uid, planet)
             new_total = add_stardust(uid, amount)
             low = planet["energy"] < 30
@@ -408,7 +500,9 @@ class PlanetPlugin(BasePlugin):
                 text = random.choice(LOW_ENERGY_TEXTS if low else COLLECT_TEXTS).format(name=name, amount=amount)
             if boost > 1:
                 text += "（含陨石雨加成 ×%d）" % boost
-            text += f" 亲密度 +{bond_gained}。当前共有 {new_total} 碎片。"
+            text += f" 亲密度 +{bond_gained}。当前共有 {new_total} 碎片。{daily_extra}"
+            if ach_msgs:
+                text += "\n" + "\n".join(ach_msgs)
             self.bot.send_reply(msg_type, group_id, user_qq, text, at_user=(msg_type == 'group'))
             return True
 
@@ -489,7 +583,7 @@ class PlanetPlugin(BasePlugin):
         add_stardust(uid, -cost)
         visitors[uid] = today
         t_planet["stardust_spent"] += cost
-        t_bond = int(_cfg("planet_bond_per_visit", 5) * temperament_mult(t_planet, "bond"))
+        t_bond = int(_cfg("planet_bond_per_visit", 5) * temperament_mult(t_planet, "bond") * rarity_bond_mult(t_planet))
         t_planet["bond"] = t_planet.get("bond", 0) + t_bond
         msgs = []
         if t_planet["level"] < max_lv:
@@ -504,18 +598,25 @@ class PlanetPlugin(BasePlugin):
                 t_planet["stage"] = new_stage
                 msgs.append(random.choice(STAGE_UP_TEXTS).format(name=t_planet["name"],
                                                                  stage=STAGE_NAMES[new_stage - 1]))
+        t_ach = _unlock_achievements(t_planet)
         update_planet(target, t_planet)
 
         bonus = ""
         mine = get_planet(uid)
         if mine and mine["level"] < max_lv:
             mine["exp"] += _cfg("planet_visit_care_exp", 5)
-            mine["bond"] = mine.get("bond", 0) + int(_cfg("planet_bond_per_visit_self", 2) * temperament_mult(mine, "bond"))
+            mine["bond"] = mine.get("bond", 0) + int(_cfg("planet_bond_per_visit_self", 2) * temperament_mult(mine, "bond") * rarity_bond_mult(mine))
+            mine_daily = _apply_daily(mine, uid, "visit")
+            mine_ach = _unlock_achievements(mine)
             update_planet(uid, mine)
-            bonus = f"\n善意的星尘回馈了你的星球(+{_cfg('planet_visit_care_exp', 5)} 经验, 亲密度+{_cfg('planet_bond_per_visit_self', 2)})"
+            bonus = f"\n善意的星尘回馈了你的星球(+{_cfg('planet_visit_care_exp', 5)} 经验, 亲密度+{_cfg('planet_bond_per_visit_self', 2)}){mine_daily}"
+            if mine_ach:
+                bonus += "\n" + "\n".join(mine_ach)
         reply = f"你帮「{t_planet['name']}」做了星尘按摩，它舒服得亮了起来！(对方亲密度 +{t_bond}){bonus}"
         if msgs:
             reply += "\n" + "\n".join(msgs)
+        if t_ach:
+            reply += "\n" + "\n".join(t_ach)
         self.bot.send_reply(msg_type, group_id, user_qq, reply, at_user=(msg_type == 'group'))
         return True
 
@@ -552,7 +653,7 @@ class PlanetPlugin(BasePlugin):
         low_feed = planet["energy"] < 30
         if low_feed:
             exp_gain_actual = int(exp_gain_actual * 1.5)
-        bond_add = int(_cfg("planet_bond_per_feed", 2) * count * temperament_mult(planet, "bond"))
+        bond_add = int(_cfg("planet_bond_per_feed", 2) * count * temperament_mult(planet, "bond") * rarity_bond_mult(planet))
         planet["bond"] = planet.get("bond", 0) + bond_add
         for _ in range(count):
             if planet["level"] < max_lv:
@@ -571,14 +672,18 @@ class PlanetPlugin(BasePlugin):
                 planet["stage"] = new_stage
                 msgs.append(random.choice(STAGE_UP_TEXTS).format(name=planet["name"],
                                                                  stage=STAGE_NAMES[new_stage - 1]))
+        daily_extra = _apply_daily(planet, uid, "feed")
+        ach_msgs = _unlock_achievements(planet)
         update_planet(uid, planet)
         if low_feed:
             reply = random.choice(LOW_FEED_TEXTS).format(name=planet["name"])
-            reply += f"（+{gained} 经验〔虚弱激励 ×1.5〕，消耗 {need} 碎片，亲密度 +{bond_add}）"
+            reply += f"（+{gained} 经验〔虚弱激励 ×1.5〕，消耗 {need} 碎片，亲密度 +{bond_add}）{daily_extra}"
         else:
             care_text = random.choice(_texts_for_energy(planet["energy"])).format(name=planet["name"])
-            reply = f"{care_text}（+{gained} 经验，消耗 {need} 碎片，亲密度 +{bond_add}）"
+            reply = f"{care_text}（+{gained} 经验，消耗 {need} 碎片，亲密度 +{bond_add}）{daily_extra}"
         if msgs:
             reply += "\n" + "\n".join(msgs)
+        if ach_msgs:
+            reply += "\n" + "\n".join(ach_msgs)
         self.bot.send_reply(msg_type, group_id, user_qq, reply, at_user=(msg_type == 'group'))
         return True

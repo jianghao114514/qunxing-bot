@@ -5,7 +5,7 @@ import random
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from core.menu_image import _load_font, _make_background, _draw_stars
 from core.config import SYSTEM_CONFIG, currency_name
-from core.planet_mode import pending_estimate, bond_title, bond_mult, temperament_mult, TEMPERAMENTS
+from core.planet_mode import pending_estimate, bond_title, bond_mult, temperament_mult, TEMPERAMENTS, RARITIES
 
 STAGE_NAMES = ["星云", "彗星", "行星", "恒星", "超新星"]
 STAGE_ICONS = ["☁", "☄", "🪐", "☀", "✨"]
@@ -196,6 +196,12 @@ def build_planet_card(planet):
 
     # 状态徽章
     badges = []
+    _rarity = planet.get("rarity", "普通")
+    _ach = planet.get("achievements", []) or []
+    if _rarity != "普通":
+        badges.append(("💎 " + _rarity, (255, 215, 130)))
+    if _ach:
+        badges.append(("🏅 成就 %d" % len(_ach), (139, 195, 255)))
     if planet.get("bond", 0) > 0:
         badges.append(("❤ 亲密度 %d · %s" % (planet.get("bond", 0), bond_title(planet.get("bond", 0))), (255, 150, 180)))
     if planet.get("collect_boost", 1) > 1:

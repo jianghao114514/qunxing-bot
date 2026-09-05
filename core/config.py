@@ -102,7 +102,7 @@ def load_config():
                 "weather": True, "joke": True, "kfc": True, "emo": True,
                 "random_img": True, "random_waifu": True,
                 "persona": True, "feedback": True, "gift": True, "query": True,
-                "planet": True, "profile": True, "bilibili": True
+                "planet": True, "profile": True, "bilibili": True, "card_battle": True
             },
             "system_config": {
                 "signin_min_reward": 10, "signin_max_reward": 100,
@@ -177,7 +177,7 @@ def load_config():
             "weather": True, "joke": True, "kfc": True, "emo": True,
             "random_img": True, "random_waifu": True, "persona": True,
             "feedback": True, "gift": True, "query": True, "planet": True,
-            "profile": True, "bilibili": True,
+            "profile": True, "bilibili": True, "card_battle": True,
         }
         FEATURE_SWITCHES.update(default_features)
         data.setdefault("feature_switches", {}).update(default_features)

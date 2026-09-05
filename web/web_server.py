@@ -355,7 +355,7 @@ def api_user_delete(qq):
 
 @app.route('/api/features')
 def api_features():
-    name_map = {'signin':'签到','draw':'抽卡','tarot':'塔罗','aichat':'AI聊天','weather':'天气','joke':'笑话','kfc':'疯狂星期四','emo':'每日emo','random_img':'随机美图','random_waifu':'每日老婆','persona':'AI人设','feedback':'问题反馈','gift':'赠送碎片','query':'背包查询','planet':'星球养成','profile':'星空名片','bilibili':'B站监控'}
+    name_map = {'signin':'签到','draw':'抽卡','tarot':'塔罗','aichat':'AI聊天','weather':'天气','joke':'笑话','kfc':'疯狂星期四','emo':'每日emo','random_img':'随机美图','random_waifu':'每日老婆','persona':'AI人设','feedback':'问题反馈','gift':'赠送碎片','query':'背包查询','planet':'星球养成','profile':'星空名片','bilibili':'B站监控','card_battle':'卡牌对战'}
     features = FEATURE_SWITCHES
     return jsonify({name_map.get(k,k): v for k,v in features.items()})
 
@@ -363,7 +363,7 @@ def api_features():
 def api_toggle():
     data = request.json
     cn = data.get('feature')
-    rev = {'签到':'signin','抽卡':'draw','塔罗':'tarot','AI聊天':'aichat','天气':'weather','笑话':'joke','疯狂星期四':'kfc','每日emo':'emo','随机美图':'random_img','每日老婆':'random_waifu','AI人设':'persona','问题反馈':'feedback','赠送碎片':'gift','背包查询':'query','星球养成':'planet','星空名片':'profile','B站监控':'bilibili'}
+    rev = {'签到':'signin','抽卡':'draw','塔罗':'tarot','AI聊天':'aichat','天气':'weather','笑话':'joke','疯狂星期四':'kfc','每日emo':'emo','随机美图':'random_img','每日老婆':'random_waifu','AI人设':'persona','问题反馈':'feedback','赠送碎片':'gift','背包查询':'query','星球养成':'planet','星空名片':'profile','B站监控':'bilibili','卡牌对战':'card_battle'}
     feat = rev.get(cn, cn)
     FEATURE_SWITCHES[feat] = data.get('enabled')
     if feat == 'bilibili':
